@@ -101,6 +101,16 @@ function toQuat(e: PoseBoneEuler | [number, number, number]): Quaternion {
 
 const IDENTITY_QUAT = new Quaternion();
 
+// Finger bones need faster convergence + amplitude boost (Kalidokit
+// underestimates curl when the palm is oblique to camera).
+const FINGER_BONE_PREFIX_RE = /^(left|right)(Thumb|Index|Middle|Ring|Little)/;
+const FINGER_GAIN = 1.4;
+const HALF_PI = Math.PI / 2;
+
+function isFingerBone(name: string): boolean {
+  return FINGER_BONE_PREFIX_RE.test(name);
+}
+
 export default function VRMAvatar({
   currentSign,
   captureClip,
@@ -144,7 +154,8 @@ export default function VRMAvatar({
   useFrame((_, dt) => {
     if (!vrm || !ready) return;
     elapsedRef.current += dt;
-    const slerpT = MathUtils.clamp(dt * 8, 0, 1);
+    const bodySlerpT = MathUtils.clamp(dt * 14, 0, 1);
+    const fingerSlerpT = MathUtils.clamp(dt * 40, 0, 1);
 
     if (captureClip) {
       // ===== Mocap capture playback path =====
@@ -161,13 +172,24 @@ export default function VRMAvatar({
         const vrmName = LLM_BONE_TO_VRM[llmName];
         const node = vrm.humanoid.getNormalizedBoneNode(vrmName);
         if (!node) continue;
+        const finger = isFingerBone(llmName);
+        const slerpT = finger ? fingerSlerpT : bodySlerpT;
         const mocap = sampled.get(llmName);
         const arm = armPose[llmName];
         const nmmEuler = nmmOffset[vrmName as unknown as keyof typeof nmmOffset];
 
         // Prefer mocap (fingers), then per-sign arm pose, then identity.
-        const base: [number, number, number] | null =
-          mocap ?? arm ?? null;
+        let base: [number, number, number] | null = mocap ?? arm ?? null;
+        if (base && finger) {
+          // Amplitude boost for finger Z (curl axis). Clamp so we don't
+          // hyperextend beyond anatomical joint limits.
+          base = [
+            base[0],
+            base[1],
+            MathUtils.clamp(base[2] * FINGER_GAIN, -HALF_PI, HALF_PI),
+          ];
+        }
+
         if (base) {
           const final: [number, number, number] = nmmEuler
             ? [base[0] + nmmEuler[0], base[1] + nmmEuler[1], base[2] + nmmEuler[2]]
@@ -201,7 +223,7 @@ export default function VRMAvatar({
               baseTarget[2] + offsetEuler[2],
             ]
           : baseTarget;
-        node.quaternion.slerp(toQuat(finalTarget), slerpT);
+        node.quaternion.slerp(toQuat(finalTarget), bodySlerpT);
       }
     }
 
