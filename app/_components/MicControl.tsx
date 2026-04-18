@@ -13,10 +13,47 @@ import {
   useTranscriptionStore,
 } from "@/lib/stores/pipeline";
 
+const LOCAL_CACHE_KEY = "vaani.llm.cache.v1";
+const LOCAL_CACHE_MAX = 30;
+
+type LocalCache = Record<string, AnimationSpec>;
+
+function loadLocalCache(): LocalCache {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as LocalCache) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalCache(next: LocalCache) {
+  if (typeof window === "undefined") return;
+  try {
+    // Keep cache bounded by insertion order.
+    const entries = Object.entries(next);
+    const bounded = entries.slice(-LOCAL_CACHE_MAX);
+    window.localStorage.setItem(
+      LOCAL_CACHE_KEY,
+      JSON.stringify(Object.fromEntries(bounded)),
+    );
+  } catch {
+    // ignore quota / privacy mode
+  }
+}
+
 async function fetchAnimationSpec(
   text: string,
   signal: AbortSignal,
 ): Promise<AnimationSpec | null> {
+  const key = text.trim().toLowerCase();
+  const cache = loadLocalCache();
+  const hit = cache[key];
+  if (hit) {
+    const revalidated = parseAnimationSpec(hit);
+    if (revalidated) return revalidated;
+  }
   try {
     const res = await fetch("/api/sign-from-text", {
       method: "POST",
@@ -26,7 +63,12 @@ async function fetchAnimationSpec(
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { spec?: unknown };
-    return parseAnimationSpec(data.spec);
+    const spec = parseAnimationSpec(data.spec);
+    if (spec) {
+      cache[key] = spec;
+      saveLocalCache(cache);
+    }
+    return spec;
   } catch {
     return null;
   }

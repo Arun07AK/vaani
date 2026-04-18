@@ -11,7 +11,7 @@ import { SIGN_SYSTEM_PROMPT } from "@/lib/signPrompt";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const LLM_TIMEOUT_MS = 12_000;
+const LLM_TIMEOUT_MS = 30_000;
 const MODEL = "gpt-4o-mini";
 const cache = new SentenceCache(50);
 
