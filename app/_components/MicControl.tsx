@@ -1,54 +1,115 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mic, MicOff, Loader2 } from "lucide-react";
+import { Mic, MicOff, Loader2, Sparkles } from "lucide-react";
 import { glossify } from "@/lib/glossify";
 import { loadLexicon, resolveSign } from "@/lib/lexicon";
 import { useSpeechASR } from "@/lib/useSpeech";
+import { parseAnimationSpec, type AnimationSpec } from "@/lib/animationSpec";
 import {
   useGlossStore,
+  useLlmQueue,
   useSignQueue,
   useTranscriptionStore,
 } from "@/lib/stores/pipeline";
+
+async function fetchAnimationSpec(
+  text: string,
+  signal: AbortSignal,
+): Promise<AnimationSpec | null> {
+  try {
+    const res = await fetch("/api/sign-from-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { spec?: unknown };
+    return parseAnimationSpec(data.spec);
+  } catch {
+    return null;
+  }
+}
 
 export default function MicControl() {
   const { isRecording, isBusy, error, start, stop, supported, engine } =
     useSpeechASR();
   const transcript = useTranscriptionStore((s) => s.transcript);
+  const isGenerating = useTranscriptionStore((s) => s.isGenerating);
+  const activeEngine = useTranscriptionStore((s) => s.engine);
+  const setGenerating = useTranscriptionStore((s) => s.setGenerating);
+  const setEngine = useTranscriptionStore((s) => s.setEngine);
   const setTokens = useGlossStore((s) => s.setTokens);
   const enqueueSigns = useSignQueue((s) => s.enqueue);
+  const enqueueLlm = useLlmQueue((s) => s.enqueue);
   const [typed, setTyped] = useState("");
 
   useEffect(() => {
     if (!transcript) return;
+    const controller = new AbortController();
     let cancelled = false;
-    const processTranscript = async () => {
+
+    const run = async () => {
+      setGenerating(true);
+      setEngine("idle");
+
+      // Try LLM path first.
+      const spec = await fetchAnimationSpec(transcript, controller.signal);
+      if (cancelled) {
+        setGenerating(false);
+        return;
+      }
+
+      if (spec) {
+        const tokens = spec.glossed.map((text, i) => ({
+          text,
+          nmm: spec.signs[i]?.nmm,
+        }));
+        setTokens(tokens);
+        enqueueLlm(spec.signs);
+        setEngine("llm");
+        setGenerating(false);
+        return;
+      }
+
+      // Fallback: rules engine.
       const baseTokens = glossify(transcript);
       let tokens = baseTokens;
-      let lexiconReady = false;
-
       try {
         const lexicon = await loadLexicon();
-        lexiconReady = true;
         tokens = baseTokens.map((token) => ({
           ...token,
           isOOV: resolveSign(token, lexicon).isOOV,
         }));
       } catch {
-        // Fall back to unannotated tokens if lexicon loading fails.
+        // keep baseTokens
       }
-
-      if (cancelled) return;
+      if (cancelled) {
+        setGenerating(false);
+        return;
+      }
       setTokens(tokens);
       enqueueSigns(tokens);
+      setEngine("rules");
+      setGenerating(false);
     };
 
-    void processTranscript();
+    void run();
 
     return () => {
       cancelled = true;
+      controller.abort();
+      setGenerating(false);
     };
-  }, [transcript, setTokens, enqueueSigns]);
+  }, [
+    transcript,
+    setTokens,
+    enqueueSigns,
+    enqueueLlm,
+    setEngine,
+    setGenerating,
+  ]);
 
   const submitTyped = () => {
     const value = typed.trim();
@@ -102,10 +163,26 @@ export default function MicControl() {
           ? "recording — release to transcribe"
           : isBusy
             ? "transcribing…"
-            : supported
-              ? `hold to talk · ${engine === "web-speech" ? "web speech" : "whisper"}`
-              : "mic unavailable — use the box below"}
+            : isGenerating
+              ? "generating ISL motion…"
+              : supported
+                ? `hold to talk · ${engine === "web-speech" ? "web speech" : "whisper"}`
+                : "mic unavailable — use the box below"}
       </p>
+
+      {activeEngine !== "idle" && !isGenerating && (
+        <div
+          className={[
+            "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider",
+            activeEngine === "llm"
+              ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+              : "border-amber-500/40 bg-amber-500/10 text-amber-300",
+          ].join(" ")}
+        >
+          <Sparkles className="h-3 w-3" />
+          {activeEngine === "llm" ? "AI-generated motion" : "rules fallback"}
+        </div>
+      )}
 
       <div className="flex w-full flex-col items-stretch gap-2 text-left">
         <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">

@@ -10,9 +10,10 @@ import {
   useGLTF,
 } from "@react-three/drei";
 import { Group, AnimationAction, LoopOnce } from "three";
-import { useSignQueue } from "@/lib/stores/pipeline";
+import { useLlmQueue, useSignQueue } from "@/lib/stores/pipeline";
 import { loadLexicon, resolveSign, type SignEntry } from "@/lib/lexicon";
 import type { GlossToken } from "@/lib/stores/pipeline";
+import type { SignAnim } from "@/lib/animationSpec";
 import VRMAvatar from "./VRMAvatar";
 
 const AVATAR_URL = "/avatars/vaani.glb";
@@ -117,15 +118,25 @@ function AvatarContent({
   mode,
   onNames,
   currentSign,
+  llmSign,
+  llmElapsedSec,
   crossfadeSec,
 }: {
   mode: "vrm" | "glb" | "placeholder";
   onNames: (names: string[]) => void;
   currentSign: CurrentSign;
+  llmSign: SignAnim | null;
+  llmElapsedSec: number;
   crossfadeSec: number;
 }) {
   if (mode === "vrm") {
-    return <VRMAvatar currentSign={currentSign} />;
+    return (
+      <VRMAvatar
+        currentSign={currentSign}
+        llmSign={llmSign}
+        llmElapsedSec={llmElapsedSec}
+      />
+    );
   }
   if (mode === "glb") {
     return (
@@ -138,8 +149,8 @@ function AvatarContent({
   }
   return (
     <PlaceholderAvatar
-      active={!!currentSign}
-      nmm={currentSign?.token.nmm}
+      active={!!currentSign || !!llmSign}
+      nmm={currentSign?.token.nmm ?? llmSign?.nmm}
     />
   );
 }
@@ -150,9 +161,14 @@ export default function AvatarStage() {
   const [crossfadeMs, setCrossfadeMs] = useState(250);
   const [lexicon, setLexicon] = useState<Map<string, SignEntry> | null>(null);
   const [currentSign, setCurrentSign] = useState<CurrentSign>(null);
+  const [llmElapsedSec, setLlmElapsedSec] = useState(0);
   const current = useSignQueue((s) => s.current);
   const advance = useSignQueue((s) => s.advance);
   const resetQueue = useSignQueue((s) => s.reset);
+  const llmCurrent = useLlmQueue((s) => s.current);
+  const llmStartedAt = useLlmQueue((s) => s.startedAt);
+  const llmAdvance = useLlmQueue((s) => s.advance);
+  const llmReset = useLlmQueue((s) => s.reset);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,6 +207,28 @@ export default function AvatarStage() {
     return () => clearTimeout(t);
   }, [current, lexicon, advance]);
 
+  // Drive the LLM queue: start a per-sign timer + RAF elapsed clock.
+  useEffect(() => {
+    if (!llmCurrent || llmStartedAt === null) {
+      setLlmElapsedSec(0);
+      return;
+    }
+    let raf = 0;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      setLlmElapsedSec((performance.now() - llmStartedAt) / 1000);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const t = setTimeout(() => llmAdvance(), llmCurrent.durationMs);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [llmCurrent, llmStartedAt, llmAdvance]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "r" && !e.metaKey && !e.ctrlKey) {
@@ -198,11 +236,12 @@ export default function AvatarStage() {
         const tag = target?.tagName?.toLowerCase() ?? "";
         if (tag === "input" || tag === "textarea") return;
         resetQueue();
+        llmReset();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [resetQueue]);
+  }, [resetQueue, llmReset]);
 
   const debugVisible = useMemo(
     () => process.env.NODE_ENV !== "production",
@@ -227,6 +266,8 @@ export default function AvatarStage() {
             mode={mode}
             onNames={setClipNames}
             currentSign={currentSign}
+            llmSign={llmCurrent}
+            llmElapsedSec={llmElapsedSec}
             crossfadeSec={crossfadeMs / 1000}
           />
           <Environment preset="city" />
@@ -248,8 +289,16 @@ export default function AvatarStage() {
           <div>avatar: {mode}</div>
           <div>lexicon: {lexicon ? `${lexicon.size} entries` : "loading…"}</div>
           <div>
-            now playing: {currentSign?.token.text ?? "—"}
-            {currentSign?.token.nmm ? ` · ${currentSign.token.nmm}` : ""}
+            now playing:{" "}
+            {llmCurrent
+              ? `${llmCurrent.gloss} (LLM)`
+              : (currentSign?.token.text ?? "—")}
+            {(llmCurrent?.nmm ?? currentSign?.token.nmm)
+              ? ` · ${llmCurrent?.nmm ?? currentSign?.token.nmm}`
+              : ""}
+          </div>
+          <div className="text-[10px] text-zinc-500">
+            llm t: {llmCurrent ? llmElapsedSec.toFixed(2) : "—"}s
           </div>
           {clipNames.length > 0 && (
             <div className="text-[10px] text-zinc-500">
