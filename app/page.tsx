@@ -1,5 +1,4 @@
 import AvatarStage from "./_components/AvatarStage";
-import DemoPrewarm from "./_components/DemoPrewarm";
 import GlossOverlay from "./_components/GlossOverlay";
 import MicControl from "./_components/MicControl";
 
@@ -15,7 +14,6 @@ export default function Home() {
         </p>
       </header>
 
-      <DemoPrewarm />
       <AvatarStage />
       <GlossOverlay />
       <MicControl />

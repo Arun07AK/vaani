@@ -1,8 +1,7 @@
 import { create } from "zustand";
-import type { SignAnim } from "../animationSpec";
 
 export type NMM = "wh" | "neg" | "yn";
-export type Engine = "llm" | "rules" | "idle";
+export type Engine = "mocap" | "rules" | "idle";
 
 export type GlossToken = {
   text: string;
@@ -84,34 +83,43 @@ export const useSignQueue = create<SignQueueState>((set, get) => ({
   reset: () => set({ queue: [], current: null }),
 }));
 
-// ---------- LLM sign queue (Phase 8+) ----------
-// Carries SignAnim items (LLM-generated keyframe bundles). When the LLM path
-// is active, the AvatarStage prefers this queue over the rules queue.
+// ---------- Mocap capture queue (Phase 13+, v2.0) ----------
+// Carries references to pre-captured ISL sign JSON clips. AvatarStage prefers
+// this queue over the rules queue when present. Each item knows its gloss,
+// capture URL (may be null if not yet captured), and an optional nmm flag
+// from the glossify engine.
 
-type LlmQueueState = {
-  queue: SignAnim[];
-  current: SignAnim | null;
+export type CaptureQueueItem = {
+  gloss: string;
+  captureUrl: string | null; // null = fall back to pose preset path
+  nmm?: NMM;
+  durationMs: number; // for queue pacing; overridden by clip.durationMs if captureUrl resolves
+};
+
+type CaptureQueueState = {
+  queue: CaptureQueueItem[];
+  current: CaptureQueueItem | null;
   startedAt: number | null; // performance.now() when current began
-  enqueue: (signs: SignAnim[]) => void;
+  enqueue: (items: CaptureQueueItem[]) => void;
   advance: () => void;
   reset: () => void;
 };
 
-export const useLlmQueue = create<LlmQueueState>((set, get) => ({
+export const useCaptureQueue = create<CaptureQueueState>((set, get) => ({
   queue: [],
   current: null,
   startedAt: null,
-  enqueue: (signs) => {
+  enqueue: (items) => {
     const state = get();
     const q = state.queue;
-    if (!state.current && signs.length > 0) {
+    if (!state.current && items.length > 0) {
       set({
-        current: signs[0],
-        queue: [...q, ...signs.slice(1)],
+        current: items[0],
+        queue: [...q, ...items.slice(1)],
         startedAt: performance.now(),
       });
     } else {
-      set({ queue: [...q, ...signs] });
+      set({ queue: [...q, ...items] });
     }
   },
   advance: () => {

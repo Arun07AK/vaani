@@ -1,7 +1,7 @@
 "use client";
 
 import * as Kalidokit from "kalidokit";
-import type { BoneName } from "@/lib/animationSpec";
+import type { BoneName } from "@/lib/bones";
 import type { HolisticResultsLike } from "./holistic";
 
 export type CaptureFrame = {

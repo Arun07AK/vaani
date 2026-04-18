@@ -5,74 +5,14 @@ import { Mic, MicOff, Loader2, Sparkles } from "lucide-react";
 import { glossify } from "@/lib/glossify";
 import { loadLexicon, resolveSign } from "@/lib/lexicon";
 import { useSpeechASR } from "@/lib/useSpeech";
-import { parseAnimationSpec, type AnimationSpec } from "@/lib/animationSpec";
+import { loadCaptureManifest, lookupCapture } from "@/lib/captureLookup";
 import {
+  useCaptureQueue,
   useGlossStore,
-  useLlmQueue,
   useSignQueue,
   useTranscriptionStore,
+  type CaptureQueueItem,
 } from "@/lib/stores/pipeline";
-
-const LOCAL_CACHE_KEY = "vaani.llm.cache.v1";
-const LOCAL_CACHE_MAX = 30;
-
-type LocalCache = Record<string, AnimationSpec>;
-
-function loadLocalCache(): LocalCache {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
-    return raw ? (JSON.parse(raw) as LocalCache) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveLocalCache(next: LocalCache) {
-  if (typeof window === "undefined") return;
-  try {
-    // Keep cache bounded by insertion order.
-    const entries = Object.entries(next);
-    const bounded = entries.slice(-LOCAL_CACHE_MAX);
-    window.localStorage.setItem(
-      LOCAL_CACHE_KEY,
-      JSON.stringify(Object.fromEntries(bounded)),
-    );
-  } catch {
-    // ignore quota / privacy mode
-  }
-}
-
-async function fetchAnimationSpec(
-  text: string,
-  signal: AbortSignal,
-): Promise<AnimationSpec | null> {
-  const key = text.trim().toLowerCase();
-  const cache = loadLocalCache();
-  const hit = cache[key];
-  if (hit) {
-    const revalidated = parseAnimationSpec(hit);
-    if (revalidated) return revalidated;
-  }
-  try {
-    const res = await fetch("/api/sign-from-text", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-      signal,
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { spec?: unknown };
-    const spec = parseAnimationSpec(data.spec);
-    if (spec) {
-      cache[key] = spec;
-      saveLocalCache(cache);
-    }
-    return spec;
-  } catch {
-    return null;
-  }
-}
 
 export default function MicControl() {
   const { isRecording, isBusy, error, start, stop, supported, engine } =
@@ -84,39 +24,20 @@ export default function MicControl() {
   const setEngine = useTranscriptionStore((s) => s.setEngine);
   const setTokens = useGlossStore((s) => s.setTokens);
   const enqueueSigns = useSignQueue((s) => s.enqueue);
-  const enqueueLlm = useLlmQueue((s) => s.enqueue);
+  const enqueueCapture = useCaptureQueue((s) => s.enqueue);
   const [typed, setTyped] = useState("");
 
   useEffect(() => {
     if (!transcript) return;
-    const controller = new AbortController();
     let cancelled = false;
 
     const run = async () => {
       setGenerating(true);
-      setEngine("idle");
 
-      // Try LLM path first.
-      const spec = await fetchAnimationSpec(transcript, controller.signal);
-      if (cancelled) {
-        setGenerating(false);
-        return;
-      }
-
-      if (spec) {
-        const tokens = spec.glossed.map((text, i) => ({
-          text,
-          nmm: spec.signs[i]?.nmm,
-        }));
-        setTokens(tokens);
-        enqueueLlm(spec.signs);
-        setEngine("llm");
-        setGenerating(false);
-        return;
-      }
-
-      // Fallback: rules engine.
+      // 1. glossify English → ISL tokens.
       const baseTokens = glossify(transcript);
+
+      // 2. resolve OOV flags via lexicon (best-effort).
       let tokens = baseTokens;
       try {
         const lexicon = await loadLexicon();
@@ -125,15 +46,57 @@ export default function MicControl() {
           isOOV: resolveSign(token, lexicon).isOOV,
         }));
       } catch {
-        // keep baseTokens
+        // fall back to unannotated tokens
       }
       if (cancelled) {
         setGenerating(false);
         return;
       }
       setTokens(tokens);
-      enqueueSigns(tokens);
-      setEngine("rules");
+
+      // 3. bucket tokens: captured → capture queue, uncaptured → rules queue.
+      const manifest = await loadCaptureManifest();
+      if (cancelled) {
+        setGenerating(false);
+        return;
+      }
+
+      const captureItems: CaptureQueueItem[] = [];
+      const fallbackTokens: typeof tokens = [];
+      let anyCapture = false;
+
+      for (const token of tokens) {
+        const url = lookupCapture(token.text, manifest);
+        if (url) {
+          anyCapture = true;
+          captureItems.push({
+            gloss: token.text,
+            captureUrl: url,
+            nmm: token.nmm,
+            durationMs: 1400,
+          });
+        } else {
+          // still add a placeholder so queue pacing works across the whole sentence.
+          captureItems.push({
+            gloss: token.text,
+            captureUrl: null,
+            nmm: token.nmm,
+            durationMs: 1100,
+          });
+          fallbackTokens.push(token);
+        }
+      }
+
+      // If we have any captures, drive the capture queue (it handles per-item
+      // fallback to pose-preset internally — captureClip=null + pose still runs).
+      // If NO captures available at all, go pure rules path.
+      if (anyCapture) {
+        enqueueCapture(captureItems);
+        setEngine("mocap");
+      } else {
+        enqueueSigns(tokens);
+        setEngine("rules");
+      }
       setGenerating(false);
     };
 
@@ -141,14 +104,13 @@ export default function MicControl() {
 
     return () => {
       cancelled = true;
-      controller.abort();
       setGenerating(false);
     };
   }, [
     transcript,
     setTokens,
     enqueueSigns,
-    enqueueLlm,
+    enqueueCapture,
     setEngine,
     setGenerating,
   ]);
@@ -183,9 +145,7 @@ export default function MicControl() {
           supported
             ? "border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20"
             : "border-zinc-800 bg-zinc-900 opacity-60",
-          isRecording
-            ? "animate-pulse ring-4 ring-violet-500/50"
-            : "",
+          isRecording ? "animate-pulse ring-4 ring-violet-500/50" : "",
           isBusy ? "cursor-wait" : "cursor-pointer",
         ].join(" ")}
       >
@@ -206,7 +166,7 @@ export default function MicControl() {
           : isBusy
             ? "transcribing…"
             : isGenerating
-              ? "generating ISL motion…"
+              ? "resolving signs…"
               : supported
                 ? `hold to talk · ${engine === "web-speech" ? "web speech" : "whisper"}`
                 : "mic unavailable — use the box below"}
@@ -216,13 +176,13 @@ export default function MicControl() {
         <div
           className={[
             "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider",
-            activeEngine === "llm"
-              ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+            activeEngine === "mocap"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
               : "border-amber-500/40 bg-amber-500/10 text-amber-300",
           ].join(" ")}
         >
           <Sparkles className="h-3 w-3" />
-          {activeEngine === "llm" ? "AI-generated motion" : "rules fallback"}
+          {activeEngine === "mocap" ? "real motion capture" : "rules fallback"}
         </div>
       )}
 

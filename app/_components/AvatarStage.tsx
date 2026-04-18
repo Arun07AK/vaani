@@ -10,15 +10,16 @@ import {
   useGLTF,
 } from "@react-three/drei";
 import { Group, AnimationAction, LoopOnce } from "three";
-import { useLlmQueue, useSignQueue } from "@/lib/stores/pipeline";
+import { useCaptureQueue, useSignQueue } from "@/lib/stores/pipeline";
 import { loadLexicon, resolveSign, type SignEntry } from "@/lib/lexicon";
 import type { GlossToken } from "@/lib/stores/pipeline";
-import type { SignAnim } from "@/lib/animationSpec";
+import { loadClip, type CaptureClip } from "@/lib/capturePlayer";
 import VRMAvatar from "./VRMAvatar";
 
 const AVATAR_URL = "/avatars/vaani.glb";
 const VRM_URL = "/avatars/vaani.vrm";
 const LOOPING_CLIPS = new Set(["Idle", "Walking", "Running", "Dance"]);
+const DEFAULT_CAPTURE_DURATION_MS = 1400;
 
 type CurrentSign = {
   token: GlossToken;
@@ -83,7 +84,6 @@ function RobotAvatar({
 
   useEffect(() => {
     if (!currentSign) {
-      // returning to idle
       const idle = idleActionRef.current;
       const prev = prevActionRef.current;
       if (idle && prev && prev !== idle) {
@@ -102,7 +102,6 @@ function RobotAvatar({
       next.setLoop(LoopOnce, 1);
       next.clampWhenFinished = true;
     }
-    // nmm cues: slight speed bump for emphasis
     next.timeScale = currentSign.token.nmm === "neg" ? 1.15 : 1.0;
 
     const prev = prevActionRef.current;
@@ -118,23 +117,26 @@ function AvatarContent({
   mode,
   onNames,
   currentSign,
-  llmSign,
-  llmElapsedSec,
+  captureClip,
+  captureElapsedSec,
+  captureNmm,
   crossfadeSec,
 }: {
   mode: "vrm" | "glb" | "placeholder";
   onNames: (names: string[]) => void;
   currentSign: CurrentSign;
-  llmSign: SignAnim | null;
-  llmElapsedSec: number;
+  captureClip: CaptureClip | null;
+  captureElapsedSec: number;
+  captureNmm?: "wh" | "neg" | "yn";
   crossfadeSec: number;
 }) {
   if (mode === "vrm") {
     return (
       <VRMAvatar
         currentSign={currentSign}
-        llmSign={llmSign}
-        llmElapsedSec={llmElapsedSec}
+        captureClip={captureClip}
+        captureElapsedSec={captureElapsedSec}
+        captureNmm={captureNmm}
       />
     );
   }
@@ -149,8 +151,8 @@ function AvatarContent({
   }
   return (
     <PlaceholderAvatar
-      active={!!currentSign || !!llmSign}
-      nmm={currentSign?.token.nmm ?? llmSign?.nmm}
+      active={!!currentSign || !!captureClip}
+      nmm={captureNmm ?? currentSign?.token.nmm}
     />
   );
 }
@@ -161,14 +163,17 @@ export default function AvatarStage() {
   const [crossfadeMs, setCrossfadeMs] = useState(250);
   const [lexicon, setLexicon] = useState<Map<string, SignEntry> | null>(null);
   const [currentSign, setCurrentSign] = useState<CurrentSign>(null);
-  const [llmElapsedSec, setLlmElapsedSec] = useState(0);
+  const [captureClip, setCaptureClip] = useState<CaptureClip | null>(null);
+  const [captureElapsedSec, setCaptureElapsedSec] = useState(0);
+
   const current = useSignQueue((s) => s.current);
   const advance = useSignQueue((s) => s.advance);
   const resetQueue = useSignQueue((s) => s.reset);
-  const llmCurrent = useLlmQueue((s) => s.current);
-  const llmStartedAt = useLlmQueue((s) => s.startedAt);
-  const llmAdvance = useLlmQueue((s) => s.advance);
-  const llmReset = useLlmQueue((s) => s.reset);
+
+  const captureCurrent = useCaptureQueue((s) => s.current);
+  const captureStartedAt = useCaptureQueue((s) => s.startedAt);
+  const captureAdvance = useCaptureQueue((s) => s.advance);
+  const captureReset = useCaptureQueue((s) => s.reset);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +200,12 @@ export default function AvatarStage() {
       .catch((err) => console.error("[lexicon]", err));
   }, []);
 
+  // Rules-fallback queue: only runs when no capture queue is active.
   useEffect(() => {
+    if (captureCurrent) {
+      setCurrentSign(null);
+      return;
+    }
     if (!current) {
       setCurrentSign(null);
       return;
@@ -205,29 +215,43 @@ export default function AvatarStage() {
     setCurrentSign({ token: current, entry });
     const t = setTimeout(() => advance(), entry.durationMs);
     return () => clearTimeout(t);
-  }, [current, lexicon, advance]);
+  }, [current, lexicon, advance, captureCurrent]);
 
-  // Drive the LLM queue: start a per-sign timer + RAF elapsed clock.
+  // Capture queue: load clip when current changes, drive elapsed clock, advance when done.
   useEffect(() => {
-    if (!llmCurrent || llmStartedAt === null) {
-      setLlmElapsedSec(0);
+    if (!captureCurrent) {
+      setCaptureClip(null);
+      setCaptureElapsedSec(0);
       return;
     }
-    let raf = 0;
     let cancelled = false;
-    const tick = () => {
+    let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const play = async () => {
+      const clip = captureCurrent.captureUrl
+        ? await loadClip(captureCurrent.captureUrl)
+        : null;
       if (cancelled) return;
-      setLlmElapsedSec((performance.now() - llmStartedAt) / 1000);
+      setCaptureClip(clip);
+      const duration = clip?.durationMs ?? captureCurrent.durationMs ?? DEFAULT_CAPTURE_DURATION_MS;
+      const startedAt = captureStartedAt ?? performance.now();
+      const tick = () => {
+        if (cancelled) return;
+        setCaptureElapsedSec((performance.now() - startedAt) / 1000);
+        raf = requestAnimationFrame(tick);
+      };
       raf = requestAnimationFrame(tick);
+      timer = setTimeout(() => captureAdvance(), duration);
     };
-    raf = requestAnimationFrame(tick);
-    const t = setTimeout(() => llmAdvance(), llmCurrent.durationMs);
+    void play();
+
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
+      if (raf) cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
     };
-  }, [llmCurrent, llmStartedAt, llmAdvance]);
+  }, [captureCurrent, captureStartedAt, captureAdvance]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -236,12 +260,12 @@ export default function AvatarStage() {
         const tag = target?.tagName?.toLowerCase() ?? "";
         if (tag === "input" || tag === "textarea") return;
         resetQueue();
-        llmReset();
+        captureReset();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [resetQueue, llmReset]);
+  }, [resetQueue, captureReset]);
 
   const debugVisible = useMemo(
     () => process.env.NODE_ENV !== "production",
@@ -266,8 +290,9 @@ export default function AvatarStage() {
             mode={mode}
             onNames={setClipNames}
             currentSign={currentSign}
-            llmSign={llmCurrent}
-            llmElapsedSec={llmElapsedSec}
+            captureClip={captureClip}
+            captureElapsedSec={captureElapsedSec}
+            captureNmm={captureCurrent?.nmm}
             crossfadeSec={crossfadeMs / 1000}
           />
           <Environment preset="city" />
@@ -290,15 +315,15 @@ export default function AvatarStage() {
           <div>lexicon: {lexicon ? `${lexicon.size} entries` : "loading…"}</div>
           <div>
             now playing:{" "}
-            {llmCurrent
-              ? `${llmCurrent.gloss} (LLM)`
+            {captureCurrent
+              ? `${captureCurrent.gloss}${captureClip ? " (mocap)" : " (no clip → fallback)"}`
               : (currentSign?.token.text ?? "—")}
-            {(llmCurrent?.nmm ?? currentSign?.token.nmm)
-              ? ` · ${llmCurrent?.nmm ?? currentSign?.token.nmm}`
+            {(captureCurrent?.nmm ?? currentSign?.token.nmm)
+              ? ` · ${captureCurrent?.nmm ?? currentSign?.token.nmm}`
               : ""}
           </div>
           <div className="text-[10px] text-zinc-500">
-            llm t: {llmCurrent ? llmElapsedSec.toFixed(2) : "—"}s
+            clip t: {captureCurrent ? captureElapsedSec.toFixed(2) : "—"}s
           </div>
           {clipNames.length > 0 && (
             <div className="text-[10px] text-zinc-500">

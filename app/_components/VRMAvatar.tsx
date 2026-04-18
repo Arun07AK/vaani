@@ -17,8 +17,11 @@ import {
 } from "@/lib/vrmPoses";
 import type { GlossToken } from "@/lib/stores/pipeline";
 import type { SignEntry } from "@/lib/lexicon";
-import { sampleSign } from "@/lib/animationPlayer";
-import type { BoneName, SignAnim } from "@/lib/animationSpec";
+import type { BoneName } from "@/lib/bones";
+import {
+  sampleClip,
+  type CaptureClip,
+} from "@/lib/capturePlayer";
 
 const VRM_URL = "/avatars/vaani.vrm";
 
@@ -27,11 +30,6 @@ type CurrentSign = {
   entry: SignEntry;
 } | null;
 
-/**
- * Map from SPEC bone names (animationSpec.ts) to VRM enum values.
- * VRM enum uses the exact same camelCase strings so this is an identity map,
- * but we go through the enum to stay type-safe with @pixiv/three-vrm.
- */
 const LLM_BONE_TO_VRM: Record<BoneName, VRMHumanBoneName> = {
   head: VRMHumanBoneName.Head,
   neck: VRMHumanBoneName.Neck,
@@ -104,13 +102,15 @@ const IDENTITY_QUAT = new Quaternion();
 
 export default function VRMAvatar({
   currentSign,
-  llmSign,
-  llmElapsedSec,
+  captureClip,
+  captureElapsedSec,
+  captureNmm,
   onReady,
 }: {
   currentSign: CurrentSign;
-  llmSign: SignAnim | null;
-  llmElapsedSec: number;
+  captureClip: CaptureClip | null;
+  captureElapsedSec: number;
+  captureNmm?: "wh" | "neg" | "yn";
   onReady?: () => void;
 }) {
   const gltf = useLoader(GLTFLoader, VRM_URL, (loader) => {
@@ -141,19 +141,13 @@ export default function VRMAvatar({
   useFrame((_, dt) => {
     if (!vrm || !ready) return;
     elapsedRef.current += dt;
-    const slerpT = MathUtils.clamp(dt * 6, 0, 1);
+    const slerpT = MathUtils.clamp(dt * 8, 0, 1);
 
-    if (llmSign) {
-      // ===== LLM keyframe-driven path =====
-      const tNorm = MathUtils.clamp(
-        llmElapsedSec / (llmSign.durationMs / 1000),
-        0,
-        1,
-      );
-      const sampled = sampleSign(llmSign, tNorm);
-      const nmmOffset = nmmFrameOffset(llmSign.nmm, llmElapsedSec);
+    if (captureClip) {
+      // ===== Mocap capture playback path =====
+      const sampled = sampleClip(captureClip, captureElapsedSec);
+      const nmmOffset = nmmFrameOffset(captureNmm, captureElapsedSec);
 
-      // Walk every humanoid bone; if present in sample, set; else slerp toward identity.
       for (const llmName of Object.keys(LLM_BONE_TO_VRM) as BoneName[]) {
         const vrmName = LLM_BONE_TO_VRM[llmName];
         const node = vrm.humanoid.getNormalizedBoneNode(vrmName);
@@ -166,9 +160,11 @@ export default function VRMAvatar({
             : euler;
           node.quaternion.slerp(toQuat(final), slerpT);
         } else if (nmmEuler) {
-          node.quaternion.slerp(toQuat(nmmEuler as [number, number, number]), slerpT);
+          node.quaternion.slerp(
+            toQuat(nmmEuler as [number, number, number]),
+            slerpT,
+          );
         } else {
-          // Relax toward T-pose identity for unaddressed bones.
           node.quaternion.slerp(IDENTITY_QUAT, slerpT);
         }
       }
