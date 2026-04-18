@@ -126,23 +126,75 @@ export default function CapturePage() {
       const video = videoRef.current;
 
       if (videoSrc) {
-        if (videoUrl) URL.revokeObjectURL(videoUrl);
+        // Reset video element fully before swapping source.
+        try {
+          video.pause();
+        } catch {}
+        video.removeAttribute("src");
+        try {
+          video.load();
+        } catch {}
+
+        // Revoke the previous object URL after detaching, to avoid invalidating
+        // the element's current src too early.
+        if (videoUrl) {
+          try {
+            URL.revokeObjectURL(videoUrl);
+          } catch {}
+        }
+
         const url = URL.createObjectURL(videoSrc);
         setVideoUrl(url);
+        video.muted = true;
+        video.playsInline = true;
+        video.crossOrigin = "anonymous";
         video.src = url;
+        video.load();
+
         await new Promise<void>((resolve, reject) => {
-          const onLoaded = () => {
+          let done = false;
+          const cleanup = () => {
+            done = true;
             video.removeEventListener("loadeddata", onLoaded);
+            video.removeEventListener("canplay", onLoaded);
             video.removeEventListener("error", onErr);
+          };
+          const onLoaded = () => {
+            if (done) return;
+            cleanup();
             resolve();
           };
           const onErr = () => {
-            video.removeEventListener("loadeddata", onLoaded);
-            video.removeEventListener("error", onErr);
-            reject(new Error("video load failed"));
+            if (done) return;
+            cleanup();
+            const mediaErr = video.error;
+            const code = mediaErr?.code ?? "?";
+            const msg = mediaErr?.message ?? "";
+            reject(
+              new Error(
+                `video load failed (code=${code}${msg ? ` · ${msg}` : ""} · file=${videoSrc.name} · size=${videoSrc.size})`,
+              ),
+            );
           };
+          if (video.readyState >= 2) {
+            // Already loaded in some cached case
+            cleanup();
+            resolve();
+            return;
+          }
           video.addEventListener("loadeddata", onLoaded);
+          video.addEventListener("canplay", onLoaded);
           video.addEventListener("error", onErr);
+
+          // Safety timeout — treat as failure after 8s
+          const timeoutId = setTimeout(() => {
+            if (done) return;
+            cleanup();
+            reject(new Error(`video load timeout (${videoSrc.name}, readyState=${video.readyState})`));
+          }, 8000);
+          const clearT = () => clearTimeout(timeoutId);
+          video.addEventListener("loadeddata", clearT, { once: true });
+          video.addEventListener("error", clearT, { once: true });
         });
       }
 
@@ -157,8 +209,12 @@ export default function CapturePage() {
         setProgress(framesRef.current.length);
       });
 
-      video.currentTime = 0;
-      await video.play();
+      try {
+        video.currentTime = 0;
+        await video.play();
+      } catch (e) {
+        console.warn("video.play rejected", e);
+      }
 
       await new Promise<void>((resolve) => {
         const loop = async () => {
@@ -354,7 +410,6 @@ export default function CapturePage() {
       <div className="relative w-full max-w-2xl">
         <video
           ref={videoRef}
-          src={videoUrl ?? undefined}
           controls={!useWebcam && batchItems.length === 0}
           muted
           playsInline
