@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
+    "@mediapipe/holistic": "^0.5.1675471629",
     "@pixiv/three-vrm": "^3.5.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.0",
@@ -19,6 +20,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "compromise": "^14.15.0",
+    "kalidokit": "^1.1.5",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",
     "openai": "^6.34.0",
