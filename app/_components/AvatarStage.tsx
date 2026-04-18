@@ -13,8 +13,10 @@ import { Group, AnimationAction, LoopOnce } from "three";
 import { useSignQueue } from "@/lib/stores/pipeline";
 import { loadLexicon, resolveSign, type SignEntry } from "@/lib/lexicon";
 import type { GlossToken } from "@/lib/stores/pipeline";
+import VRMAvatar from "./VRMAvatar";
 
 const AVATAR_URL = "/avatars/vaani.glb";
+const VRM_URL = "/avatars/vaani.vrm";
 const LOOPING_CLIPS = new Set(["Idle", "Walking", "Running", "Dance"]);
 
 type CurrentSign = {
@@ -112,23 +114,29 @@ function RobotAvatar({
 }
 
 function AvatarContent({
-  avatarLoaded,
+  mode,
   onNames,
   currentSign,
   crossfadeSec,
 }: {
-  avatarLoaded: boolean;
+  mode: "vrm" | "glb" | "placeholder";
   onNames: (names: string[]) => void;
   currentSign: CurrentSign;
   crossfadeSec: number;
 }) {
-  return avatarLoaded ? (
-    <RobotAvatar
-      onReady={onNames}
-      currentSign={currentSign}
-      crossfadeSec={crossfadeSec}
-    />
-  ) : (
+  if (mode === "vrm") {
+    return <VRMAvatar currentSign={currentSign} />;
+  }
+  if (mode === "glb") {
+    return (
+      <RobotAvatar
+        onReady={onNames}
+        currentSign={currentSign}
+        crossfadeSec={crossfadeSec}
+      />
+    );
+  }
+  return (
     <PlaceholderAvatar
       active={!!currentSign}
       nmm={currentSign?.token.nmm}
@@ -137,7 +145,7 @@ function AvatarContent({
 }
 
 export default function AvatarStage() {
-  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const [mode, setMode] = useState<"vrm" | "glb" | "placeholder">("placeholder");
   const [clipNames, setClipNames] = useState<string[]>([]);
   const [crossfadeMs, setCrossfadeMs] = useState(250);
   const [lexicon, setLexicon] = useState<Map<string, SignEntry> | null>(null);
@@ -147,9 +155,22 @@ export default function AvatarStage() {
   const resetQueue = useSignQueue((s) => s.reset);
 
   useEffect(() => {
-    fetch(AVATAR_URL, { method: "HEAD" })
-      .then((r) => setAvatarLoaded(r.ok))
-      .catch(() => setAvatarLoaded(false));
+    let cancelled = false;
+    const probe = async () => {
+      try {
+        const vrm = await fetch(VRM_URL, { method: "HEAD" });
+        if (!cancelled && vrm.ok) return setMode("vrm");
+      } catch {}
+      try {
+        const glb = await fetch(AVATAR_URL, { method: "HEAD" });
+        if (!cancelled && glb.ok) return setMode("glb");
+      } catch {}
+      if (!cancelled) setMode("placeholder");
+    };
+    void probe();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -203,7 +224,7 @@ export default function AvatarStage() {
         <Stars radius={40} depth={35} count={2800} factor={3} saturation={0} fade speed={0.6} />
         <Suspense fallback={null}>
           <AvatarContent
-            avatarLoaded={avatarLoaded}
+            mode={mode}
             onNames={setClipNames}
             currentSign={currentSign}
             crossfadeSec={crossfadeMs / 1000}
@@ -224,7 +245,7 @@ export default function AvatarStage() {
           <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
             debug
           </div>
-          <div>avatar: {avatarLoaded ? "GLB loaded" : "placeholder"}</div>
+          <div>avatar: {mode}</div>
           <div>lexicon: {lexicon ? `${lexicon.size} entries` : "loading…"}</div>
           <div>
             now playing: {currentSign?.token.text ?? "—"}

@@ -68,20 +68,27 @@ export function useSpeechASR(): UseASRResult {
   const setStoreRecording = useTranscriptionStore((s) => s.setRecording);
   const setStoreError = useTranscriptionStore((s) => s.setError);
 
+  const [engine, setEngine] = useState<"web-speech" | "whisper" | "none">(
+    "none",
+  );
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const finalRef = useRef("");
-  const engineRef = useRef<"web-speech" | "whisper" | "none">("none");
 
   const whisper = useMic();
 
   const ctor = typeof window !== "undefined" ? getRecognitionCtor() : null;
   const hasWebSpeech = !!ctor;
 
-  if (engineRef.current === "none") {
-    engineRef.current = hasWebSpeech ? "web-speech" : whisper.supported ? "whisper" : "none";
-  }
+  useEffect(() => {
+    const nextEngine = hasWebSpeech
+      ? "web-speech"
+      : whisper.supported
+        ? "whisper"
+        : "none";
+    setEngine((current) => (current === nextEngine ? current : nextEngine));
+  }, [hasWebSpeech, whisper.supported]);
 
   const startWebSpeech = useCallback(async () => {
     if (!ctor) return;
@@ -129,25 +136,25 @@ export function useSpeechASR(): UseASRResult {
   }, []);
 
   const start = useCallback(async () => {
-    if (engineRef.current === "web-speech") return startWebSpeech();
-    if (engineRef.current === "whisper") return whisper.start();
+    if (engine === "web-speech") return startWebSpeech();
+    if (engine === "whisper") return whisper.start();
     setError("no ASR engine available — use the type-input below");
-  }, [startWebSpeech, whisper]);
+  }, [engine, startWebSpeech, whisper]);
 
   const stop = useCallback(() => {
-    if (engineRef.current === "web-speech") return stopWebSpeech();
-    if (engineRef.current === "whisper") return whisper.stop();
-  }, [stopWebSpeech, whisper]);
+    if (engine === "web-speech") return stopWebSpeech();
+    if (engine === "whisper") return whisper.stop();
+  }, [engine, stopWebSpeech, whisper]);
 
   useEffect(() => () => recognitionRef.current?.abort(), []);
 
   return {
-    isRecording: engineRef.current === "whisper" ? whisper.isRecording : isRecording,
-    isBusy: engineRef.current === "whisper" ? whisper.isBusy : false,
+    isRecording: engine === "whisper" ? whisper.isRecording : isRecording,
+    isBusy: engine === "whisper" ? whisper.isBusy : false,
     error: error || whisper.error,
     start,
     stop,
-    supported: engineRef.current !== "none",
-    engine: engineRef.current,
+    supported: engine !== "none",
+    engine,
   };
 }

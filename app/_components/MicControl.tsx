@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { glossify } from "@/lib/glossify";
+import { loadLexicon, resolveSign } from "@/lib/lexicon";
 import { useSpeechASR } from "@/lib/useSpeech";
 import {
   useGlossStore,
@@ -20,9 +21,33 @@ export default function MicControl() {
 
   useEffect(() => {
     if (!transcript) return;
-    const tokens = glossify(transcript);
-    setTokens(tokens);
-    enqueueSigns(tokens);
+    let cancelled = false;
+    const processTranscript = async () => {
+      const baseTokens = glossify(transcript);
+      let tokens = baseTokens;
+      let lexiconReady = false;
+
+      try {
+        const lexicon = await loadLexicon();
+        lexiconReady = true;
+        tokens = baseTokens.map((token) => ({
+          ...token,
+          isOOV: resolveSign(token, lexicon).isOOV,
+        }));
+      } catch {
+        // Fall back to unannotated tokens if lexicon loading fails.
+      }
+
+      if (cancelled) return;
+      setTokens(tokens);
+      enqueueSigns(tokens);
+    };
+
+    void processTranscript();
+
+    return () => {
+      cancelled = true;
+    };
   }, [transcript, setTokens, enqueueSigns]);
 
   const submitTyped = () => {

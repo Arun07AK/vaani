@@ -52,8 +52,9 @@ export const useSignQueue = create<SignQueueState>((set, get) => ({
   queue: [],
   current: null,
   enqueue: (tokens) => {
-    const q = get().queue;
-    if (!get().current && tokens.length > 0) {
+    const state = get();
+    const q = state.queue;
+    if (!state.current && tokens.length > 0) {
       set({ current: tokens[0], queue: [...q, ...tokens.slice(1)] });
     } else {
       set({ queue: [...q, ...tokens] });
