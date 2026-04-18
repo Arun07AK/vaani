@@ -2,26 +2,40 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Environment, OrbitControls, useAnimations, useGLTF } from "@react-three/drei";
-import { Group, AnimationAction } from "three";
+import {
+  Environment,
+  OrbitControls,
+  Stars,
+  useAnimations,
+  useGLTF,
+} from "@react-three/drei";
+import { Group, AnimationAction, LoopOnce } from "three";
 import { useSignQueue } from "@/lib/stores/pipeline";
 import { loadLexicon, resolveSign, type SignEntry } from "@/lib/lexicon";
 import type { GlossToken } from "@/lib/stores/pipeline";
 
 const AVATAR_URL = "/avatars/vaani.glb";
+const LOOPING_CLIPS = new Set(["Idle", "Walking", "Running", "Dance"]);
 
 type CurrentSign = {
   token: GlossToken;
   entry: SignEntry;
 } | null;
 
-function PlaceholderAvatar({ active, nmm }: { active: boolean; nmm?: GlossToken["nmm"] }) {
+function PlaceholderAvatar({
+  active,
+  nmm,
+}: {
+  active: boolean;
+  nmm?: GlossToken["nmm"];
+}) {
   const ref = useRef<Group>(null);
   useFrame((_, dt) => {
     if (ref.current) ref.current.rotation.y += dt * (active ? 1.5 : 0.3);
   });
   const headColor = active ? "#f472b6" : "#7c3aed";
-  const bodyColor = nmm === "wh" ? "#fbbf24" : nmm === "neg" ? "#ef4444" : "#4338ca";
+  const bodyColor =
+    nmm === "wh" ? "#fbbf24" : nmm === "neg" ? "#ef4444" : "#4338ca";
   return (
     <group ref={ref}>
       <mesh position={[0, 1.5, 0]}>
@@ -40,7 +54,7 @@ function PlaceholderAvatar({ active, nmm }: { active: boolean; nmm?: GlossToken[
   );
 }
 
-function RPMAvatar({
+function RobotAvatar({
   onReady,
   currentSign,
   crossfadeSec,
@@ -50,29 +64,51 @@ function RPMAvatar({
   crossfadeSec: number;
 }) {
   const { scene, animations } = useGLTF(AVATAR_URL);
-  const { actions, names, mixer } = useAnimations(animations, scene);
+  const { actions, names } = useAnimations(animations, scene);
   const prevActionRef = useRef<AnimationAction | null>(null);
+  const idleActionRef = useRef<AnimationAction | null>(null);
 
   useEffect(() => {
     onReady(names);
-  }, [names, onReady]);
+    const idle = actions["Idle"];
+    if (idle) {
+      idleActionRef.current = idle;
+      idle.reset().play();
+      prevActionRef.current = idle;
+    }
+  }, [actions, names, onReady]);
 
   useEffect(() => {
-    if (!currentSign) return;
+    if (!currentSign) {
+      // returning to idle
+      const idle = idleActionRef.current;
+      const prev = prevActionRef.current;
+      if (idle && prev && prev !== idle) {
+        prev.fadeOut(crossfadeSec);
+        idle.reset().fadeIn(crossfadeSec).play();
+        prevActionRef.current = idle;
+      }
+      return;
+    }
     const clipName = currentSign.entry.source;
-    const next = actions[clipName];
+    const next = actions[clipName] ?? actions["Idle"];
     if (!next) return;
+
+    const isLooping = LOOPING_CLIPS.has(clipName);
+    if (!isLooping) {
+      next.setLoop(LoopOnce, 1);
+      next.clampWhenFinished = true;
+    }
+    // nmm cues: slight speed bump for emphasis
+    next.timeScale = currentSign.token.nmm === "neg" ? 1.15 : 1.0;
+
     const prev = prevActionRef.current;
     next.reset().fadeIn(crossfadeSec).play();
     if (prev && prev !== next) prev.fadeOut(crossfadeSec);
     prevActionRef.current = next;
-    return () => {
-      // let the mixer keep the tail; nothing to do here
-      void mixer;
-    };
-  }, [currentSign, actions, crossfadeSec, mixer]);
+  }, [currentSign, actions, crossfadeSec]);
 
-  return <primitive object={scene} scale={1} position={[0, -1.2, 0]} />;
+  return <primitive object={scene} scale={0.55} position={[0, -1.2, 0]} />;
 }
 
 function AvatarContent({
@@ -87,9 +123,16 @@ function AvatarContent({
   crossfadeSec: number;
 }) {
   return avatarLoaded ? (
-    <RPMAvatar onReady={onNames} currentSign={currentSign} crossfadeSec={crossfadeSec} />
+    <RobotAvatar
+      onReady={onNames}
+      currentSign={currentSign}
+      crossfadeSec={crossfadeSec}
+    />
   ) : (
-    <PlaceholderAvatar active={!!currentSign} nmm={currentSign?.token.nmm} />
+    <PlaceholderAvatar
+      active={!!currentSign}
+      nmm={currentSign?.token.nmm}
+    />
   );
 }
 
@@ -101,6 +144,7 @@ export default function AvatarStage() {
   const [currentSign, setCurrentSign] = useState<CurrentSign>(null);
   const current = useSignQueue((s) => s.current);
   const advance = useSignQueue((s) => s.advance);
+  const resetQueue = useSignQueue((s) => s.reset);
 
   useEffect(() => {
     fetch(AVATAR_URL, { method: "HEAD" })
@@ -126,18 +170,37 @@ export default function AvatarStage() {
     return () => clearTimeout(t);
   }, [current, lexicon, advance]);
 
-  const debugVisible = useMemo(() => process.env.NODE_ENV !== "production", []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "r" && !e.metaKey && !e.ctrlKey) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase() ?? "";
+        if (tag === "input" || tag === "textarea") return;
+        resetQueue();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [resetQueue]);
+
+  const debugVisible = useMemo(
+    () => process.env.NODE_ENV !== "production",
+    [],
+  );
 
   return (
     <div className="relative h-[58vh] w-full max-w-4xl">
       <Canvas
-        className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-[#0b0b1f] to-black"
-        camera={{ position: [0, 1.2, 3.2], fov: 35, near: 0.1, far: 50 }}
+        className="rounded-2xl border border-zinc-800 bg-gradient-to-b from-[#0b0b1f] to-black shadow-[0_0_80px_-20px_rgba(124,58,237,0.4)]"
+        camera={{ position: [0, 1.2, 3.2], fov: 35, near: 0.1, far: 80 }}
         dpr={[1, 2]}
         shadows={false}
       >
-        <ambientLight intensity={0.6} />
+        <color attach="background" args={["#05050f"]} />
+        <ambientLight intensity={0.55} />
         <directionalLight position={[2, 4, 3]} intensity={1.2} />
+        <pointLight position={[-3, 2, 2]} intensity={0.6} color="#7c3aed" />
+        <Stars radius={40} depth={35} count={2800} factor={3} saturation={0} fade speed={0.6} />
         <Suspense fallback={null}>
           <AvatarContent
             avatarLoaded={avatarLoaded}
@@ -152,27 +215,25 @@ export default function AvatarStage() {
           enablePan={false}
           minPolarAngle={Math.PI / 3}
           maxPolarAngle={Math.PI / 2}
-          target={[0, 0.9, 0]}
+          target={[0, 0.6, 0]}
         />
       </Canvas>
 
       {debugVisible && (
-        <div className="absolute bottom-3 right-3 flex flex-col gap-2 rounded-lg border border-zinc-800 bg-black/80 p-3 text-xs text-zinc-300 backdrop-blur">
-          <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">debug</div>
-          <div>
-            avatar: {avatarLoaded ? "GLB loaded" : "placeholder (drop vaani.glb into public/avatars/)"}
+        <div className="absolute bottom-3 right-3 flex flex-col gap-1.5 rounded-lg border border-zinc-800 bg-black/70 p-3 text-xs text-zinc-300 backdrop-blur">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+            debug
           </div>
-          <div>
-            lexicon: {lexicon ? `${lexicon.size} entries` : "loading…"}
-          </div>
+          <div>avatar: {avatarLoaded ? "GLB loaded" : "placeholder"}</div>
+          <div>lexicon: {lexicon ? `${lexicon.size} entries` : "loading…"}</div>
           <div>
             now playing: {currentSign?.token.text ?? "—"}
             {currentSign?.token.nmm ? ` · ${currentSign.token.nmm}` : ""}
           </div>
           {clipNames.length > 0 && (
-            <div>
-              clips in GLB: {clipNames.slice(0, 5).join(", ")}
-              {clipNames.length > 5 ? "…" : ""}
+            <div className="text-[10px] text-zinc-500">
+              clips: {clipNames.slice(0, 6).join(", ")}
+              {clipNames.length > 6 ? "…" : ""}
             </div>
           )}
           <label className="flex items-center gap-2">
@@ -187,6 +248,7 @@ export default function AvatarStage() {
               className="w-24 accent-violet-500"
             />
           </label>
+          <div className="text-[10px] text-zinc-500">press R to reset queue</div>
         </div>
       )}
     </div>
