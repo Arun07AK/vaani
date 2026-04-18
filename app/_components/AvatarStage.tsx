@@ -118,6 +118,7 @@ function AvatarContent({
   onNames,
   currentSign,
   captureClip,
+  captureGloss,
   captureElapsedSec,
   captureNmm,
   crossfadeSec,
@@ -126,6 +127,7 @@ function AvatarContent({
   onNames: (names: string[]) => void;
   currentSign: CurrentSign;
   captureClip: CaptureClip | null;
+  captureGloss: string | null;
   captureElapsedSec: number;
   captureNmm?: "wh" | "neg" | "yn";
   crossfadeSec: number;
@@ -135,6 +137,7 @@ function AvatarContent({
       <VRMAvatar
         currentSign={currentSign}
         captureClip={captureClip}
+        captureGloss={captureGloss}
         captureElapsedSec={captureElapsedSec}
         captureNmm={captureNmm}
       />
@@ -291,6 +294,7 @@ export default function AvatarStage() {
             onNames={setClipNames}
             currentSign={currentSign}
             captureClip={captureClip}
+            captureGloss={captureCurrent?.gloss ?? null}
             captureElapsedSec={captureElapsedSec}
             captureNmm={captureCurrent?.nmm}
             crossfadeSec={crossfadeMs / 1000}

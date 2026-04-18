@@ -22,6 +22,7 @@ import {
   sampleClip,
   type CaptureClip,
 } from "@/lib/capturePlayer";
+import { armPoseFor, REST_POSE } from "@/lib/signArmPoses";
 
 const VRM_URL = "/avatars/vaani.vrm";
 
@@ -103,12 +104,14 @@ const IDENTITY_QUAT = new Quaternion();
 export default function VRMAvatar({
   currentSign,
   captureClip,
+  captureGloss,
   captureElapsedSec,
   captureNmm,
   onReady,
 }: {
   currentSign: CurrentSign;
   captureClip: CaptureClip | null;
+  captureGloss: string | null;
   captureElapsedSec: number;
   captureNmm?: "wh" | "neg" | "yn";
   onReady?: () => void;
@@ -145,19 +148,30 @@ export default function VRMAvatar({
 
     if (captureClip) {
       // ===== Mocap capture playback path =====
+      // Our ISLRTC captures have real FINGER data but missing body/arm data
+      // (chest-up framing). So we layer sources per bone:
+      //   1. mocap sample (fingers, mostly)
+      //   2. per-sign hand-authored arm pose (arms in right place)
+      //   3. REST_POSE (arms at sides) — final fallback
       const sampled = sampleClip(captureClip, captureElapsedSec);
       const nmmOffset = nmmFrameOffset(captureNmm, captureElapsedSec);
+      const armPose = captureGloss ? armPoseFor(captureGloss) : REST_POSE;
 
       for (const llmName of Object.keys(LLM_BONE_TO_VRM) as BoneName[]) {
         const vrmName = LLM_BONE_TO_VRM[llmName];
         const node = vrm.humanoid.getNormalizedBoneNode(vrmName);
         if (!node) continue;
-        const euler = sampled.get(llmName);
+        const mocap = sampled.get(llmName);
+        const arm = armPose[llmName];
         const nmmEuler = nmmOffset[vrmName as unknown as keyof typeof nmmOffset];
-        if (euler) {
+
+        // Prefer mocap (fingers), then per-sign arm pose, then identity.
+        const base: [number, number, number] | null =
+          mocap ?? arm ?? null;
+        if (base) {
           const final: [number, number, number] = nmmEuler
-            ? [euler[0] + nmmEuler[0], euler[1] + nmmEuler[1], euler[2] + nmmEuler[2]]
-            : euler;
+            ? [base[0] + nmmEuler[0], base[1] + nmmEuler[1], base[2] + nmmEuler[2]]
+            : base;
           node.quaternion.slerp(toQuat(final), slerpT);
         } else if (nmmEuler) {
           node.quaternion.slerp(

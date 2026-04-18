@@ -1,3 +1,16 @@
 {
-  "HELLO": "/signs/captures/HELLO.json"
+  "HELLO": "/signs/captures/HELLO.json",
+  "THANK-YOU": "/signs/captures/THANK-YOU.json",
+  "THANK": "/signs/captures/THANK-YOU.json",
+  "I": "/signs/captures/I.json",
+  "MY": "/signs/captures/MY.json",
+  "YOU": "/signs/captures/YOU.json",
+  "FRIEND": "/signs/captures/FRIEND.json",
+  "NAME": "/signs/captures/NAME.json",
+  "WATER": "/signs/captures/WATER.json",
+  "WANT": "/signs/captures/WANT.json",
+  "WHAT": "/signs/captures/WHAT.json",
+  "SEE": "/signs/captures/SEE.json",
+  "YES": "/signs/captures/YES.json",
+  "NO": "/signs/captures/NO.json"
 }
