@@ -61,9 +61,8 @@ export default function VRMAvatar({
 
   useEffect(() => {
     if (!vrm) return;
-    // Face the camera (VRM default faces -Z).
-    vrm.scene.rotation.y = Math.PI;
-    // Prepare all relevant bone refs — they are normalized humanoid nodes.
+    // VRM 1.0 already faces +Z (toward camera at default position). No flip needed.
+    vrm.scene.rotation.y = 0;
     setReady(true);
     readyCbRef.current?.();
   }, [vrm]);
@@ -100,7 +99,7 @@ export default function VRMAvatar({
     vrm.update(dt);
   });
 
-  return <primitive object={vrm.scene} position={[0, -1.1, 0]} scale={1} />;
+  return <primitive object={vrm.scene} position={[0, -1.05, 0]} scale={1.05} />;
 }
 
 // Preload so the resource is in-flight as early as possible.
