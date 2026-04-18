@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { glossify } from "@/lib/glossify";
-import { useMic } from "@/lib/useMic";
+import { useSpeechASR } from "@/lib/useSpeech";
 import {
   useGlossStore,
   useSignQueue,
@@ -11,7 +11,8 @@ import {
 } from "@/lib/stores/pipeline";
 
 export default function MicControl() {
-  const { isRecording, isBusy, error, start, stop, supported } = useMic();
+  const { isRecording, isBusy, error, start, stop, supported, engine } =
+    useSpeechASR();
   const transcript = useTranscriptionStore((s) => s.transcript);
   const setTokens = useGlossStore((s) => s.setTokens);
   const enqueueSigns = useSignQueue((s) => s.enqueue);
@@ -77,7 +78,7 @@ export default function MicControl() {
           : isBusy
             ? "transcribing…"
             : supported
-              ? "hold to talk"
+              ? `hold to talk · ${engine === "web-speech" ? "web speech" : "whisper"}`
               : "mic unavailable — use the box below"}
       </p>
 
