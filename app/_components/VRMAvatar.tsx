@@ -174,7 +174,13 @@ export default function VRMAvatar({
         if (!node) continue;
         const finger = isFingerBone(llmName);
         const slerpT = finger ? fingerSlerpT : bodySlerpT;
-        const mocap = sampled.get(llmName);
+        // Mocap captures are in a frame rotated 180° around Y relative to the
+        // front-facing avatar. Conjugate by Y-π: [x,y,z] → [-x,y,-z]. This
+        // moves "hands curl behind body" → "hands curl toward camera".
+        const rawMocap = sampled.get(llmName);
+        const mocap: [number, number, number] | undefined = rawMocap
+          ? [-rawMocap[0], rawMocap[1], -rawMocap[2]]
+          : undefined;
         const arm = armPose[llmName];
         const nmmEuler = nmmOffset[vrmName as unknown as keyof typeof nmmOffset];
 
