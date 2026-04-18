@@ -13,12 +13,19 @@ export type CaptureClip = {
 
 export function buildClip(
   gloss: string,
-  frames: CaptureFrame[],
+  rawFrames: CaptureFrame[],
   fps = 30,
   source?: string,
 ): CaptureClip {
-  const startTime = frames[0]?.time ?? 0;
-  const rebased = frames.map((f) => ({ ...f, time: f.time - startTime }));
+  // Drop leading + trailing frames that have no tracked bones (MediaPipe
+  // wasn't detecting anything), so the clip starts/ends on real motion.
+  const firstIdx = rawFrames.findIndex((f) => Object.keys(f.bones).length > 0);
+  const lastIdx = rawFrames.map((f) => Object.keys(f.bones).length > 0).lastIndexOf(true);
+  const trimmed =
+    firstIdx === -1 || lastIdx === -1 ? rawFrames : rawFrames.slice(firstIdx, lastIdx + 1);
+
+  const startTime = trimmed[0]?.time ?? 0;
+  const rebased = trimmed.map((f) => ({ ...f, time: f.time - startTime }));
   const durationMs =
     rebased.length === 0 ? 0 : Math.round((rebased[rebased.length - 1].time) * 1000);
   return {
