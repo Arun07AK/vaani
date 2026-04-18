@@ -4,20 +4,20 @@ export type BoneEuler = [number, number, number]; // x, y, z in radians
 export type Pose = Partial<Record<VRMHumanBoneName, BoneEuler>>;
 
 /**
- * Static target rotations per bone, in the VRM normalized humanoid space.
- * All rotations are in T-pose relative — 0 = T-pose default.
- * Rotation axis convention for arms (VRM):
- *   - rightUpperArm.z: negative = arm down (Z points along arm toward fingers)
- *   - leftUpperArm.z: positive = arm down
- *   - lowerArm.y: bend at elbow
- *   - hand.x: bend wrist forward
+ * Static target rotations per bone, in the VRM 1.0 normalized humanoid space.
+ * T-pose is the 0-rotation reference. Axis convention (verified on our VRM):
+ *   - leftUpperArm.z  NEGATIVE → arm DOWN; POSITIVE → arm OVERHEAD
+ *   - rightUpperArm.z POSITIVE → arm DOWN; NEGATIVE → arm OVERHEAD
+ *   - leftLowerArm.y  NEGATIVE → elbow flexes FORWARD (hand → face)
+ *   - rightLowerArm.y POSITIVE → elbow flexes FORWARD (hand → face)
+ *   - hand.x POSITIVE → wrist flexes forward
  */
 
 const REST_ARMS: Pose = {
-  leftUpperArm: [0, 0, 1.3],
-  rightUpperArm: [0, 0, -1.3],
-  leftLowerArm: [0, 0.2, 0],
-  rightLowerArm: [0, -0.2, 0],
+  leftUpperArm: [0, 0, -1.3],
+  rightUpperArm: [0, 0, 1.3],
+  leftLowerArm: [0, -0.2, 0],
+  rightLowerArm: [0, 0.2, 0],
 };
 
 export const POSES: Record<string, Pose> = {
@@ -30,8 +30,8 @@ export const POSES: Record<string, Pose> = {
   // HELLO — right arm up, palm forward
   Wave: {
     ...REST_ARMS,
-    rightUpperArm: [0, 0.3, -2.6],
-    rightLowerArm: [0, -0.8, 0],
+    rightUpperArm: [0, 0.3, 2.6],
+    rightLowerArm: [0, 0.8, 0],
     rightHand: [0, 0, 0.3],
     head: [0.05, 0.15, 0],
   },
@@ -39,8 +39,8 @@ export const POSES: Record<string, Pose> = {
   // THANK-YOU / PLEASE — both hands forward, thumbs up feel
   ThumbsUp: {
     ...REST_ARMS,
-    rightUpperArm: [-1.0, 0.1, -1.0],
-    rightLowerArm: [0, -1.2, 0],
+    rightUpperArm: [-1.0, 0.1, 1.0],
+    rightLowerArm: [0, 1.2, 0],
     rightThumbProximal: [0, 0, -0.4],
     head: [0.05, 0, 0],
   },
@@ -55,36 +55,36 @@ export const POSES: Record<string, Pose> = {
   No: {
     ...REST_ARMS,
     head: [0, 0.35, 0],
-    rightUpperArm: [0, 0, -1.1],
-    rightLowerArm: [0, -0.3, 0],
+    rightUpperArm: [0, 0, 1.1],
+    rightLowerArm: [0, 0.3, 0],
   },
 
   // YOU / NUMBERS / ASTRONAUT — arms spread / point
   Jump: {
-    leftUpperArm: [0, 0, 1.8],
-    rightUpperArm: [0, 0, -1.8],
-    leftLowerArm: [0, 0.1, 0],
-    rightLowerArm: [0, -0.1, 0],
+    leftUpperArm: [0, 0, -1.8],
+    rightUpperArm: [0, 0, 1.8],
+    leftLowerArm: [0, -0.1, 0],
+    rightLowerArm: [0, 0.1, 0],
     head: [0.1, 0, 0],
     spine: [-0.05, 0, 0],
   },
 
   // STAR / EARTH / DANCE — both arms up and out
   Dance: {
-    leftUpperArm: [-0.5, 0, 2.4],
-    rightUpperArm: [-0.5, 0, -2.4],
-    leftLowerArm: [0, 0.5, 0],
-    rightLowerArm: [0, -0.5, 0],
+    leftUpperArm: [-0.5, 0, -2.4],
+    rightUpperArm: [-0.5, 0, 2.4],
+    leftLowerArm: [0, -0.5, 0],
+    rightLowerArm: [0, 0.5, 0],
     head: [0, 0.2, 0],
     spine: [0, 0.2, 0],
   },
 
   // GO / COME — walking stance
   Walking: {
-    leftUpperArm: [0.3, 0, 1.2],
-    rightUpperArm: [-0.3, 0, -1.2],
-    leftLowerArm: [0, 0.4, 0],
-    rightLowerArm: [0, -0.4, 0],
+    leftUpperArm: [0.3, 0, -1.2],
+    rightUpperArm: [-0.3, 0, 1.2],
+    leftLowerArm: [0, -0.4, 0],
+    rightLowerArm: [0, 0.4, 0],
   },
 };
 
