@@ -24,7 +24,14 @@ export type UseMicResult = {
   supported: boolean;
 };
 
-export function useMic(): UseMicResult {
+type LangGetter = () => string | undefined;
+
+/**
+ * `getLang` is an optional closure that returns the current ASR language
+ * code (e.g. "en-IN", "hi-IN"). It's called at upload time so the correct
+ * language is sent to Whisper regardless of when `start()` fired.
+ */
+export function useMic(getLang?: LangGetter): UseMicResult {
   const [isRecording, setIsRecording] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +39,8 @@ export function useMic(): UseMicResult {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const mimeRef = useRef<string | undefined>(undefined);
+  const getLangRef = useRef<LangGetter | undefined>(getLang);
+  getLangRef.current = getLang;
 
   const setTranscript = useTranscriptionStore((s) => s.setTranscript);
   const setStoreRecording = useTranscriptionStore((s) => s.setRecording);
@@ -58,6 +67,12 @@ export function useMic(): UseMicResult {
         const ext = mime.includes("mp4") ? "m4a" : mime.includes("mpeg") ? "mp3" : "webm";
         const form = new FormData();
         form.append("audio", new File([blob], `rec.${ext}`, { type: mime }));
+        // Map BCP-47 (en-IN, hi-IN) to Whisper's 2-letter code (en, hi).
+        const langTag = getLangRef.current?.();
+        if (langTag) {
+          const short = langTag.split("-")[0];
+          if (short) form.append("lang", short);
+        }
         const res = await fetch("/api/transcribe", { method: "POST", body: form });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);

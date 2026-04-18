@@ -49,6 +49,8 @@ function getRecognitionCtor(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+export type AsrLang = "en-IN" | "hi-IN";
+
 export type UseASRResult = {
   isRecording: boolean;
   isBusy: boolean;
@@ -57,11 +59,14 @@ export type UseASRResult = {
   stop: () => void;
   supported: boolean;
   engine: "web-speech" | "whisper" | "none";
+  lang: AsrLang;
+  setLang: (lang: AsrLang) => void;
 };
 
 /**
  * Hybrid ASR hook: prefers browser-free Web Speech API (no network/key),
  * falls back to MediaRecorder + OpenAI Whisper when Web Speech isn't available.
+ * Supports Indian English ("en-IN") and Hindi ("hi-IN").
  */
 export function useSpeechASR(): UseASRResult {
   const setTranscript = useTranscriptionStore((s) => s.setTranscript);
@@ -73,10 +78,13 @@ export function useSpeechASR(): UseASRResult {
   );
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lang, setLang] = useState<AsrLang>("en-IN");
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const finalRef = useRef("");
+  const langRef = useRef<AsrLang>("en-IN");
+  langRef.current = lang;
 
-  const whisper = useMic();
+  const whisper = useMic(() => langRef.current);
 
   const ctor = typeof window !== "undefined" ? getRecognitionCtor() : null;
   const hasWebSpeech = !!ctor;
@@ -94,7 +102,7 @@ export function useSpeechASR(): UseASRResult {
     if (!ctor) return;
     try {
       const rec = new ctor();
-      rec.lang = "en-IN";
+      rec.lang = langRef.current;
       rec.continuous = false;
       rec.interimResults = false;
       finalRef.current = "";
@@ -156,5 +164,7 @@ export function useSpeechASR(): UseASRResult {
     stop,
     supported: engine !== "none",
     engine,
+    lang,
+    setLang,
   };
 }

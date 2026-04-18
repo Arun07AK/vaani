@@ -154,8 +154,17 @@ export default function VRMAvatar({
   useFrame((_, dt) => {
     if (!vrm || !ready) return;
     elapsedRef.current += dt;
-    const bodySlerpT = MathUtils.clamp(dt * 14, 0, 1);
-    const fingerSlerpT = MathUtils.clamp(dt * 40, 0, 1);
+    // Ease slerp rate during first 200ms of each new sign so bones glide
+    // from the previous sign's last pose into the new sign's starting pose
+    // instead of snapping. At t=0 run at 25%, reach full rate at t≥200ms.
+    const TRANSITION_S = 0.2;
+    const tNorm =
+      captureClip && captureElapsedSec < TRANSITION_S
+        ? captureElapsedSec / TRANSITION_S
+        : 1;
+    const ease = 0.25 + 0.75 * tNorm * tNorm;
+    const bodySlerpT = MathUtils.clamp(dt * 14 * ease, 0, 1);
+    const fingerSlerpT = MathUtils.clamp(dt * 40 * ease, 0, 1);
 
     if (captureClip) {
       // ===== Mocap capture playback path =====

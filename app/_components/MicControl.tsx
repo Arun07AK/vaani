@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { Mic, MicOff, Loader2, Sparkles } from "lucide-react";
 import { glossify } from "@/lib/glossify";
+import { glossifyViaLlm } from "@/lib/glossifyLlm";
 import { loadLexicon, resolveSign } from "@/lib/lexicon";
-import { useSpeechASR } from "@/lib/useSpeech";
+import { useSpeechASR, type AsrLang } from "@/lib/useSpeech";
 import { loadCaptureManifest, lookupCapture } from "@/lib/captureLookup";
 import {
   useCaptureQueue,
@@ -12,11 +13,21 @@ import {
   useSignQueue,
   useTranscriptionStore,
   type CaptureQueueItem,
+  type GlossToken,
 } from "@/lib/stores/pipeline";
 
 export default function MicControl() {
-  const { isRecording, isBusy, error, start, stop, supported, engine } =
-    useSpeechASR();
+  const {
+    isRecording,
+    isBusy,
+    error,
+    start,
+    stop,
+    supported,
+    engine,
+    lang,
+    setLang,
+  } = useSpeechASR();
   const transcript = useTranscriptionStore((s) => s.transcript);
   const isGenerating = useTranscriptionStore((s) => s.isGenerating);
   const activeEngine = useTranscriptionStore((s) => s.engine);
@@ -26,70 +37,62 @@ export default function MicControl() {
   const enqueueSigns = useSignQueue((s) => s.enqueue);
   const enqueueCapture = useCaptureQueue((s) => s.enqueue);
   const [typed, setTyped] = useState("");
+  const [usedLlm, setUsedLlm] = useState(false);
 
   useEffect(() => {
     if (!transcript) return;
+    const controller = new AbortController();
     let cancelled = false;
 
     const run = async () => {
       setGenerating(true);
 
-      // 1. glossify English → ISL tokens.
-      const baseTokens = glossify(transcript);
+      // 1a. Try LLM first (handles Hindi, arbitrary sentences, context).
+      let tokens: GlossToken[] | null = await glossifyViaLlm(
+        transcript,
+        controller.signal,
+      );
+      let usedLlmLocal = !!tokens;
 
-      // 2. resolve OOV flags via lexicon (best-effort).
-      let tokens = baseTokens;
+      // 1b. Fallback: rule-based glossify.
+      if (!tokens) {
+        tokens = glossify(transcript);
+      }
+
+      // 2. OOV flags.
       try {
         const lexicon = await loadLexicon();
-        tokens = baseTokens.map((token) => ({
+        tokens = tokens.map((token) => ({
           ...token,
           isOOV: resolveSign(token, lexicon).isOOV,
         }));
-      } catch {
-        // fall back to unannotated tokens
-      }
+      } catch {}
       if (cancelled) {
         setGenerating(false);
         return;
       }
       setTokens(tokens);
+      setUsedLlm(usedLlmLocal);
 
-      // 3. bucket tokens: captured → capture queue, uncaptured → rules queue.
+      // 3. Bucket: captured → capture queue, uncaptured → placeholder.
       const manifest = await loadCaptureManifest();
       if (cancelled) {
         setGenerating(false);
         return;
       }
-
       const captureItems: CaptureQueueItem[] = [];
-      const fallbackTokens: typeof tokens = [];
       let anyCapture = false;
-
       for (const token of tokens) {
         const url = lookupCapture(token.text, manifest);
-        if (url) {
-          anyCapture = true;
-          captureItems.push({
-            gloss: token.text,
-            captureUrl: url,
-            nmm: token.nmm,
-            durationMs: 1400,
-          });
-        } else {
-          // still add a placeholder so queue pacing works across the whole sentence.
-          captureItems.push({
-            gloss: token.text,
-            captureUrl: null,
-            nmm: token.nmm,
-            durationMs: 1100,
-          });
-          fallbackTokens.push(token);
-        }
+        if (url) anyCapture = true;
+        captureItems.push({
+          gloss: token.text,
+          captureUrl: url,
+          nmm: token.nmm,
+          durationMs: url ? 1400 : 1100,
+        });
       }
 
-      // If we have any captures, drive the capture queue (it handles per-item
-      // fallback to pose-preset internally — captureClip=null + pose still runs).
-      // If NO captures available at all, go pure rules path.
       if (anyCapture) {
         enqueueCapture(captureItems);
         setEngine("mocap");
@@ -104,6 +107,7 @@ export default function MicControl() {
 
     return () => {
       cancelled = true;
+      controller.abort();
       setGenerating(false);
     };
   }, [
@@ -133,6 +137,24 @@ export default function MicControl() {
 
   return (
     <section className="flex w-full max-w-2xl flex-col items-center gap-4">
+      <div className="flex items-center gap-1 rounded-full border border-zinc-800 bg-zinc-950/60 p-1 text-[11px] font-mono uppercase tracking-wider">
+        {(["en-IN", "hi-IN"] as const).map((code) => (
+          <button
+            key={code}
+            type="button"
+            onClick={() => setLang(code as AsrLang)}
+            className={[
+              "rounded-full px-3 py-1 transition",
+              lang === code
+                ? "bg-violet-500/30 text-violet-100"
+                : "text-zinc-500 hover:text-zinc-200",
+            ].join(" ")}
+          >
+            {code === "en-IN" ? "EN" : "हिं"}
+          </button>
+        ))}
+      </div>
+
       <button
         type="button"
         onPointerDown={handleMicDown}
@@ -162,33 +184,40 @@ export default function MicControl() {
 
       <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
         {isRecording
-          ? "recording — release to transcribe"
+          ? `recording \u00b7 ${lang === "hi-IN" ? "\u0939\u093f\u0902\u0926\u0940" : "EN"}`
           : isBusy
-            ? "transcribing…"
+            ? "transcribing\u2026"
             : isGenerating
-              ? "resolving signs…"
+              ? "resolving signs\u2026"
               : supported
-                ? `hold to talk · ${engine === "web-speech" ? "web speech" : "whisper"}`
-                : "mic unavailable — use the box below"}
+                ? `hold to talk \u00b7 ${engine === "web-speech" ? "web speech" : "whisper"}`
+                : "mic unavailable \u2014 use the box below"}
       </p>
 
       {activeEngine !== "idle" && !isGenerating && (
-        <div
-          className={[
-            "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider",
-            activeEngine === "mocap"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-              : "border-amber-500/40 bg-amber-500/10 text-amber-300",
-          ].join(" ")}
-        >
-          <Sparkles className="h-3 w-3" />
-          {activeEngine === "mocap" ? "real motion capture" : "rules fallback"}
+        <div className="flex items-center gap-2">
+          <div
+            className={[
+              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider",
+              activeEngine === "mocap"
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                : "border-amber-500/40 bg-amber-500/10 text-amber-300",
+            ].join(" ")}
+          >
+            <Sparkles className="h-3 w-3" />
+            {activeEngine === "mocap" ? "real motion capture" : "rules fallback"}
+          </div>
+          {usedLlm && (
+            <div className="inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-violet-300">
+              AI context
+            </div>
+          )}
         </div>
       )}
 
       <div className="flex w-full flex-col items-stretch gap-2 text-left">
         <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-          or type instead (Enter to submit)
+          or type instead (Enter to submit) \u2014 {lang === "hi-IN" ? "Hindi or English" : "English"}
         </label>
         <textarea
           value={typed}
@@ -200,7 +229,11 @@ export default function MicControl() {
             }
           }}
           rows={2}
-          placeholder='"Thank you my friend" · "What is your name?" · "I want water"'
+          placeholder={
+            lang === "hi-IN"
+              ? "\u0906\u092a\u0915\u093e \u0928\u093e\u092e \u0915\u094d\u092f\u093e \u0939\u0948? \u00b7 \u092e\u0941\u091d\u0947 \u092a\u093e\u0928\u0940 \u091a\u093e\u0939\u093f\u090f"
+              : '"Thank you my friend" \u00b7 "What is your name?" \u00b7 "I want water"'
+          }
           className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500 focus:outline-none"
         />
       </div>

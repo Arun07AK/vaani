@@ -39,15 +39,18 @@ export async function POST(request: Request) {
   const fileType = asBlob.type || "audio/webm";
   const uploadFile = new File([asBlob], fileName, { type: fileType });
 
+  const langField = formData.get("lang");
+  const lang = typeof langField === "string" && langField.trim() ? langField.trim() : undefined;
+
   const openai = new OpenAI({ apiKey });
   try {
     const result = await openai.audio.transcriptions.create({
       file: uploadFile,
       model: "whisper-1",
-      language: "en",
+      ...(lang ? { language: lang } : {}),
       response_format: "json",
     });
-    return NextResponse.json({ transcript: result.text }, { status: 200 });
+    return NextResponse.json({ transcript: result.text, language: lang ?? "auto" }, { status: 200 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "transcription failed";
     console.error("[/api/transcribe] OpenAI error:", message);
