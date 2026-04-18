@@ -67,25 +67,32 @@ function clamp(x: number): number {
   return x;
 }
 
-const bonesRecord = z
-  .record(z.string(), eulerTuple)
-  .transform((record) => {
-    const filtered: Record<string, [number, number, number]> = {};
-    for (const [k, v] of Object.entries(record)) {
-      if (BONE_SET.has(k)) filtered[k] = v;
-    }
-    return filtered as Partial<Record<BoneName, [number, number, number]>>;
-  });
+const bonePairSchema = z.object({
+  name: z.string(),
+  euler: eulerTuple,
+});
+
+const bonesArray = z.array(bonePairSchema).transform((pairs) => {
+  const out: Record<string, [number, number, number]> = {};
+  for (const { name, euler } of pairs) {
+    if (BONE_SET.has(name)) out[name] = euler;
+  }
+  return out as Partial<Record<BoneName, [number, number, number]>>;
+});
 
 const keyframeSchema = z.object({
   t: z.number().min(0).max(1),
-  bones: bonesRecord,
+  bones: bonesArray,
 });
 
 const signSchema = z
   .object({
     gloss: z.string().min(1).max(40).transform((s) => s.toUpperCase()),
-    nmm: z.enum(["wh", "neg", "yn"]).optional(),
+    nmm: z
+      .enum(["wh", "neg", "yn"])
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     durationMs: z.number().min(300).max(3500).transform((n) => Math.round(n)),
     keyframes: z.array(keyframeSchema).min(1).max(8),
   })
@@ -149,16 +156,11 @@ export class SentenceCache {
  * the LLM stays on the bone enum.
  */
 export function buildOpenAIJsonSchema() {
-  const boneProps: Record<string, unknown> = {};
-  for (const name of BONE_NAMES) {
-    boneProps[name] = {
-      type: "array",
-      items: { type: "number" },
-      minItems: 3,
-      maxItems: 3,
-      description: "XYZ Euler rotation in radians",
-    };
-  }
+  // OpenAI structured-output strict mode requires every property in `properties`
+  // to also appear in `required`, and `additionalProperties: false` everywhere.
+  // So we represent bones as an ARRAY of {name, euler} pairs instead of an
+  // object with optional keys. LLM picks names from the enum; runtime Zod
+  // parser converts to a Record.
   return {
     type: "object",
     additionalProperties: false,
@@ -168,25 +170,22 @@ export function buildOpenAIJsonSchema() {
       glossed: {
         type: "array",
         items: { type: "string" },
-        minItems: 1,
-        maxItems: 20,
       },
       signs: {
         type: "array",
-        minItems: 1,
-        maxItems: 20,
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["gloss", "durationMs", "keyframes"],
+          required: ["gloss", "nmm", "durationMs", "keyframes"],
           properties: {
             gloss: { type: "string" },
-            nmm: { type: "string", enum: ["wh", "neg", "yn"] },
+            nmm: {
+              type: ["string", "null"],
+              enum: ["wh", "neg", "yn", null],
+            },
             durationMs: { type: "number" },
             keyframes: {
               type: "array",
-              minItems: 1,
-              maxItems: 8,
               items: {
                 type: "object",
                 additionalProperties: false,
@@ -194,9 +193,19 @@ export function buildOpenAIJsonSchema() {
                 properties: {
                   t: { type: "number" },
                   bones: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: boneProps,
+                    type: "array",
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      required: ["name", "euler"],
+                      properties: {
+                        name: { type: "string", enum: BONE_NAMES as unknown as string[] },
+                        euler: {
+                          type: "array",
+                          items: { type: "number" },
+                        },
+                      },
+                    },
                   },
                 },
               },

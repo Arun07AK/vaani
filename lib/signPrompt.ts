@@ -66,7 +66,7 @@ Prefer the right hand for one-handed signs (most ISL signs are right-handed). Us
 
 ## Output format
 
-Return ONLY valid JSON matching the AnimationSpec schema — no prose.
+Return ONLY valid JSON matching the AnimationSpec schema. "bones" is an ARRAY of { "name": "<boneName>", "euler": [x, y, z] } objects. Use the nmm field when a sign has a non-manual marker (wh / neg / yn); otherwise set it to null.
 
 ## Few-shot examples
 
@@ -78,11 +78,22 @@ OUTPUT:
   "signs": [
     {
       "gloss": "HELLO",
+      "nmm": null,
       "durationMs": 1400,
       "keyframes": [
-        { "t": 0, "bones": { "rightUpperArm": [0, 0, -1.3] } },
-        { "t": 0.5, "bones": { "rightUpperArm": [0, 0.3, -2.6], "rightLowerArm": [0, -0.8, 0], "rightHand": [0.3, 0, 0.2] } },
-        { "t": 1, "bones": { "rightUpperArm": [0, -0.1, -2.6], "rightLowerArm": [0, -0.8, 0], "rightHand": [0.3, 0, -0.2] } }
+        { "t": 0, "bones": [
+          { "name": "rightUpperArm", "euler": [0, 0, -1.3] }
+        ]},
+        { "t": 0.5, "bones": [
+          { "name": "rightUpperArm", "euler": [0, 0.3, -2.6] },
+          { "name": "rightLowerArm", "euler": [0, -0.8, 0] },
+          { "name": "rightHand",     "euler": [0.3, 0, 0.2] }
+        ]},
+        { "t": 1, "bones": [
+          { "name": "rightUpperArm", "euler": [0, -0.1, -2.6] },
+          { "name": "rightLowerArm", "euler": [0, -0.8, 0] },
+          { "name": "rightHand",     "euler": [0.3, 0, -0.2] }
+        ]}
       ]
     }
   ]
@@ -96,56 +107,68 @@ OUTPUT:
   "signs": [
     {
       "gloss": "I",
+      "nmm": null,
       "durationMs": 800,
       "keyframes": [
-        { "t": 0, "bones": { "rightUpperArm": [0, 0, -1.3] } },
-        { "t": 1, "bones": {
-          "rightUpperArm": [-0.4, 0.9, -0.8],
-          "rightLowerArm": [0, -1.3, 0],
-          "rightIndexProximal": [0, 0, 0],
-          "rightMiddleProximal": [1.4, 0, 0], "rightMiddleIntermediate": [1.4, 0, 0],
-          "rightRingProximal": [1.4, 0, 0], "rightRingIntermediate": [1.4, 0, 0],
-          "rightLittleProximal": [1.4, 0, 0], "rightLittleIntermediate": [1.4, 0, 0],
-          "rightThumbProximal": [0, 0, -0.6]
-        }}
+        { "t": 0, "bones": [
+          { "name": "rightUpperArm", "euler": [0, 0, -1.3] }
+        ]},
+        { "t": 1, "bones": [
+          { "name": "rightUpperArm", "euler": [-0.4, 0.9, -0.8] },
+          { "name": "rightLowerArm", "euler": [0, -1.3, 0] },
+          { "name": "rightMiddleProximal", "euler": [1.4, 0, 0] },
+          { "name": "rightRingProximal",   "euler": [1.4, 0, 0] },
+          { "name": "rightLittleProximal", "euler": [1.4, 0, 0] },
+          { "name": "rightThumbProximal",  "euler": [0, 0, -0.6] }
+        ]}
       ]
     },
     {
       "gloss": "WATER",
+      "nmm": null,
       "durationMs": 1500,
       "keyframes": [
-        { "t": 0, "bones": { "rightUpperArm": [-0.8, 0.3, -1.0], "rightLowerArm": [0, -1.4, 0] } },
-        { "t": 0.3, "bones": {
-          "rightUpperArm": [-1.1, 0.3, -1.0], "rightLowerArm": [0, -1.6, 0],
-          "rightHand": [0.2, 0, 0],
-          "rightIndexProximal": [0, 0, 0], "rightMiddleProximal": [0, 0, 0], "rightRingProximal": [0, 0, 0],
-          "rightLittleProximal": [1.4, 0, 0], "rightLittleIntermediate": [1.4, 0, 0],
-          "rightThumbProximal": [1.0, 0, -0.5]
-        }},
-        { "t": 0.7, "bones": {
-          "rightUpperArm": [-0.9, 0.3, -1.0], "rightLowerArm": [0, -1.4, 0],
-          "rightHand": [0.4, 0, 0],
-          "rightIndexProximal": [0, 0, 0], "rightMiddleProximal": [0, 0, 0], "rightRingProximal": [0, 0, 0],
-          "rightLittleProximal": [1.4, 0, 0], "rightLittleIntermediate": [1.4, 0, 0],
-          "rightThumbProximal": [1.0, 0, -0.5]
-        }},
-        { "t": 1, "bones": { "rightUpperArm": [-0.8, 0.3, -1.0], "rightLowerArm": [0, -1.4, 0] } }
+        { "t": 0, "bones": [
+          { "name": "rightUpperArm", "euler": [-0.8, 0.3, -1.0] },
+          { "name": "rightLowerArm", "euler": [0, -1.4, 0] }
+        ]},
+        { "t": 0.3, "bones": [
+          { "name": "rightUpperArm", "euler": [-1.1, 0.3, -1.0] },
+          { "name": "rightLowerArm", "euler": [0, -1.6, 0] },
+          { "name": "rightHand",     "euler": [0.2, 0, 0] },
+          { "name": "rightLittleProximal", "euler": [1.4, 0, 0] },
+          { "name": "rightThumbProximal",  "euler": [1.0, 0, -0.5] }
+        ]},
+        { "t": 0.7, "bones": [
+          { "name": "rightUpperArm", "euler": [-0.9, 0.3, -1.0] },
+          { "name": "rightLowerArm", "euler": [0, -1.4, 0] },
+          { "name": "rightHand",     "euler": [0.4, 0, 0] }
+        ]},
+        { "t": 1, "bones": [
+          { "name": "rightUpperArm", "euler": [-0.8, 0.3, -1.0] },
+          { "name": "rightLowerArm", "euler": [0, -1.4, 0] }
+        ]}
       ]
     },
     {
       "gloss": "WANT",
+      "nmm": null,
       "durationMs": 1200,
       "keyframes": [
-        { "t": 0, "bones": {
-          "leftUpperArm": [-0.6, -0.3, 1.0], "rightUpperArm": [-0.6, 0.3, -1.0],
-          "leftLowerArm": [0, 1.2, 0], "rightLowerArm": [0, -1.2, 0],
-          "leftHand": [0, 0, -0.2], "rightHand": [0, 0, 0.2]
-        }},
-        { "t": 1, "bones": {
-          "leftUpperArm": [-0.9, -0.2, 1.0], "rightUpperArm": [-0.9, 0.2, -1.0],
-          "leftLowerArm": [0, 1.5, 0], "rightLowerArm": [0, -1.5, 0],
-          "leftHand": [0.3, 0, -0.2], "rightHand": [0.3, 0, 0.2]
-        }}
+        { "t": 0, "bones": [
+          { "name": "leftUpperArm",  "euler": [-0.6, -0.3, 1.0] },
+          { "name": "rightUpperArm", "euler": [-0.6, 0.3, -1.0] },
+          { "name": "leftLowerArm",  "euler": [0, 1.2, 0] },
+          { "name": "rightLowerArm", "euler": [0, -1.2, 0] }
+        ]},
+        { "t": 1, "bones": [
+          { "name": "leftUpperArm",  "euler": [-0.9, -0.2, 1.0] },
+          { "name": "rightUpperArm", "euler": [-0.9, 0.2, -1.0] },
+          { "name": "leftLowerArm",  "euler": [0, 1.5, 0] },
+          { "name": "rightLowerArm", "euler": [0, -1.5, 0] },
+          { "name": "leftHand",      "euler": [0.3, 0, -0.2] },
+          { "name": "rightHand",     "euler": [0.3, 0, 0.2] }
+        ]}
       ]
     }
   ]
@@ -159,34 +182,17 @@ OUTPUT:
   "signs": [
     {
       "gloss": "YOUR",
+      "nmm": null,
       "durationMs": 900,
       "keyframes": [
-        { "t": 0, "bones": { "rightUpperArm": [0, 0, -1.3] } },
-        { "t": 1, "bones": {
-          "rightUpperArm": [-0.8, 0.5, -1.1], "rightLowerArm": [0, -1.3, 0],
-          "rightHand": [0.4, 0, 0]
-        }}
-      ]
-    },
-    {
-      "gloss": "NAME",
-      "durationMs": 1300,
-      "keyframes": [
-        { "t": 0, "bones": {
-          "rightUpperArm": [-0.9, 0.3, -0.9], "rightLowerArm": [0, -1.5, 0]
-        }},
-        { "t": 0.5, "bones": {
-          "leftUpperArm": [-0.9, -0.2, 1.0], "rightUpperArm": [-0.9, 0.2, -1.0],
-          "leftLowerArm": [0, 1.3, 0], "rightLowerArm": [0, -1.3, 0],
-          "leftIndexProximal": [0, 0, 0], "leftMiddleProximal": [0, 0, 0],
-          "leftRingProximal": [1.4, 0, 0], "leftLittleProximal": [1.4, 0, 0],
-          "rightIndexProximal": [0, 0, 0], "rightMiddleProximal": [0, 0, 0],
-          "rightRingProximal": [1.4, 0, 0], "rightLittleProximal": [1.4, 0, 0]
-        }},
-        { "t": 1, "bones": {
-          "leftUpperArm": [-0.7, -0.2, 1.0], "rightUpperArm": [-0.7, 0.2, -1.0],
-          "leftLowerArm": [0, 1.3, 0], "rightLowerArm": [0, -1.3, 0]
-        }}
+        { "t": 0, "bones": [
+          { "name": "rightUpperArm", "euler": [0, 0, -1.3] }
+        ]},
+        { "t": 1, "bones": [
+          { "name": "rightUpperArm", "euler": [-0.8, 0.5, -1.1] },
+          { "name": "rightLowerArm", "euler": [0, -1.3, 0] },
+          { "name": "rightHand",     "euler": [0.4, 0, 0] }
+        ]}
       ]
     },
     {
@@ -194,23 +200,27 @@ OUTPUT:
       "nmm": "wh",
       "durationMs": 1200,
       "keyframes": [
-        { "t": 0, "bones": { "rightUpperArm": [0, 0, -1.3], "head": [0, 0, 0] } },
-        { "t": 0.5, "bones": {
-          "leftUpperArm": [-0.6, -0.2, 0.8], "rightUpperArm": [-0.6, 0.2, -0.8],
-          "leftLowerArm": [0, 0.9, 0], "rightLowerArm": [0, -0.9, 0],
-          "leftHand": [0.2, 0, 0], "rightHand": [0.2, 0, 0],
-          "head": [-0.15, 0.2, 0]
-        }},
-        { "t": 1, "bones": {
-          "leftUpperArm": [-0.6, -0.2, 0.8], "rightUpperArm": [-0.6, 0.2, -0.8],
-          "leftLowerArm": [0, 0.9, 0], "rightLowerArm": [0, -0.9, 0],
-          "leftHand": [0.2, 0, 0], "rightHand": [0.2, 0, 0],
-          "head": [-0.15, -0.2, 0]
-        }}
+        { "t": 0, "bones": [
+          { "name": "rightUpperArm", "euler": [0, 0, -1.3] }
+        ]},
+        { "t": 0.5, "bones": [
+          { "name": "leftUpperArm",  "euler": [-0.6, -0.2, 0.8] },
+          { "name": "rightUpperArm", "euler": [-0.6, 0.2, -0.8] },
+          { "name": "leftLowerArm",  "euler": [0, 0.9, 0] },
+          { "name": "rightLowerArm", "euler": [0, -0.9, 0] },
+          { "name": "head",          "euler": [-0.15, 0.2, 0] }
+        ]},
+        { "t": 1, "bones": [
+          { "name": "leftUpperArm",  "euler": [-0.6, -0.2, 0.8] },
+          { "name": "rightUpperArm", "euler": [-0.6, 0.2, -0.8] },
+          { "name": "leftLowerArm",  "euler": [0, 0.9, 0] },
+          { "name": "rightLowerArm", "euler": [0, -0.9, 0] },
+          { "name": "head",          "euler": [-0.15, -0.2, 0] }
+        ]}
       ]
     }
   ]
 }
 
-Use these examples as your numeric reference. For other signs, pick the most visually distinct ISL gesture you know and translate to bone rotations with similar magnitudes and patterns.
+Use these as your numeric reference. For other signs, pick the most visually distinct ISL gesture you know and translate to bone rotations with similar magnitudes and patterns.
 `.trim();
