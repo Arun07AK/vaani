@@ -118,7 +118,7 @@ export default function MicControl() {
 
       <div className="flex w-full flex-col items-stretch gap-2 text-left">
         <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-          or type instead (Enter to submit) \u2014 {lang === "hi-IN" ? "Hindi or English" : "English"}
+          or type instead (Enter to submit) {"\u2014"} {lang === "hi-IN" ? "Hindi or English" : "English"}
         </label>
         <textarea
           value={typed}

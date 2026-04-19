@@ -116,7 +116,15 @@ export function useSpeechASR(): UseASRResult {
         if (buf) finalRef.current += buf;
       };
       rec.onerror = (e) => {
-        const msg = e.error || e.message || "speech recognition error";
+        const code = e.error || "speech recognition error";
+        // Benign errors: user tapped-and-released quickly, or no speech was
+        // detected in the window. Don't surface these as red UI errors —
+        // just log and let the next attempt succeed.
+        if (code === "aborted" || code === "no-speech") {
+          console.info("[vaani speech]", code);
+          return;
+        }
+        const msg = e.message || code;
         setError(msg);
         setStoreError(msg);
       };
