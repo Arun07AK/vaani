@@ -1,7 +1,8 @@
 import { create } from "zustand";
+import type { SignComposition } from "../signCompose";
 
 export type NMM = "wh" | "neg" | "yn";
-export type Engine = "mocap" | "rules" | "idle";
+export type Engine = "mocap" | "composition" | "rules" | "idle";
 
 export type GlossToken = {
   text: string;
@@ -91,9 +92,13 @@ export const useSignQueue = create<SignQueueState>((set, get) => ({
 
 export type CaptureQueueItem = {
   gloss: string;
-  captureUrl: string | null; // null = fall back to pose preset path
+  /** Authoritative mocap clip URL (preferred if present). */
+  captureUrl: string | null;
+  /** Procedural composition (used when no captureUrl — before pose-preset fallback). */
+  composition?: SignComposition;
   nmm?: NMM;
-  durationMs: number; // for queue pacing; overridden by clip.durationMs if captureUrl resolves
+  /** Queue-pacing duration in ms; overridden by clip.durationMs when captureUrl resolves. */
+  durationMs: number;
 };
 
 type CaptureQueueState = {

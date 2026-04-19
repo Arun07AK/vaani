@@ -14,6 +14,7 @@ import { useCaptureQueue, useSignQueue } from "@/lib/stores/pipeline";
 import { loadLexicon, resolveSign, type SignEntry } from "@/lib/lexicon";
 import type { GlossToken } from "@/lib/stores/pipeline";
 import { loadClip, type CaptureClip } from "@/lib/capturePlayer";
+import type { SignComposition } from "@/lib/signCompose";
 import VRMAvatar from "./VRMAvatar";
 
 const AVATAR_URL = "/avatars/vaani.glb";
@@ -119,6 +120,7 @@ function AvatarContent({
   currentSign,
   captureClip,
   captureGloss,
+  captureComposition,
   captureElapsedSec,
   captureNmm,
   crossfadeSec,
@@ -128,6 +130,7 @@ function AvatarContent({
   currentSign: CurrentSign;
   captureClip: CaptureClip | null;
   captureGloss: string | null;
+  captureComposition: SignComposition | null;
   captureElapsedSec: number;
   captureNmm?: "wh" | "neg" | "yn";
   crossfadeSec: number;
@@ -138,6 +141,7 @@ function AvatarContent({
         currentSign={currentSign}
         captureClip={captureClip}
         captureGloss={captureGloss}
+        captureComposition={captureComposition}
         captureElapsedSec={captureElapsedSec}
         captureNmm={captureNmm}
       />
@@ -295,6 +299,7 @@ export default function AvatarStage() {
             currentSign={currentSign}
             captureClip={captureClip}
             captureGloss={captureCurrent?.gloss ?? null}
+            captureComposition={captureCurrent?.composition ?? null}
             captureElapsedSec={captureElapsedSec}
             captureNmm={captureCurrent?.nmm}
             crossfadeSec={crossfadeMs / 1000}
@@ -320,7 +325,13 @@ export default function AvatarStage() {
           <div>
             now playing:{" "}
             {captureCurrent
-              ? `${captureCurrent.gloss}${captureClip ? " (mocap)" : " (no clip → fallback)"}`
+              ? `${captureCurrent.gloss}${
+                  captureClip
+                    ? " (mocap)"
+                    : captureCurrent.composition
+                      ? ` (compose · ${captureCurrent.composition.handshape})`
+                      : " (rules)"
+                }`
               : (currentSign?.token.text ?? "—")}
             {(captureCurrent?.nmm ?? currentSign?.token.nmm)
               ? ` · ${captureCurrent?.nmm ?? currentSign?.token.nmm}`

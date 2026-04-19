@@ -23,6 +23,7 @@ import {
   type CaptureClip,
 } from "@/lib/capturePlayer";
 import { armPoseFor, REST_POSE } from "@/lib/signArmPoses";
+import { composeSign, type SignComposition } from "@/lib/signCompose";
 
 const VRM_URL = "/avatars/vaani.vrm";
 
@@ -115,6 +116,7 @@ export default function VRMAvatar({
   currentSign,
   captureClip,
   captureGloss,
+  captureComposition,
   captureElapsedSec,
   captureNmm,
   onReady,
@@ -122,6 +124,7 @@ export default function VRMAvatar({
   currentSign: CurrentSign;
   captureClip: CaptureClip | null;
   captureGloss: string | null;
+  captureComposition: SignComposition | null;
   captureElapsedSec: number;
   captureNmm?: "wh" | "neg" | "yn";
   onReady?: () => void;
@@ -158,11 +161,12 @@ export default function VRMAvatar({
     // from the previous sign's last pose into the new sign's starting pose
     // instead of snapping. At t=0 run at 25%, reach full rate at t≥200ms.
     const TRANSITION_S = 0.2;
-    const tNorm =
-      captureClip && captureElapsedSec < TRANSITION_S
+    const active = !!captureClip || !!captureComposition;
+    const tEase =
+      active && captureElapsedSec < TRANSITION_S
         ? captureElapsedSec / TRANSITION_S
         : 1;
-    const ease = 0.25 + 0.75 * tNorm * tNorm;
+    const ease = 0.25 + 0.75 * tEase * tEase;
     const bodySlerpT = MathUtils.clamp(dt * 14 * ease, 0, 1);
     const fingerSlerpT = MathUtils.clamp(dt * 40 * ease, 0, 1);
 
@@ -219,8 +223,39 @@ export default function VRMAvatar({
           node.quaternion.slerp(IDENTITY_QUAT, slerpT);
         }
       }
+    } else if (captureComposition) {
+      // ===== Procedural composition path (handshape + location + palm + movement) =====
+      const durSec = captureComposition.durationMs / 1000;
+      const tNorm = Math.min(1, Math.max(0, captureElapsedSec / durSec));
+      const composed = composeSign(captureComposition, tNorm);
+      const nmmOffset = nmmFrameOffset(captureNmm, captureElapsedSec);
+
+      for (const llmName of Object.keys(LLM_BONE_TO_VRM) as BoneName[]) {
+        const vrmName = LLM_BONE_TO_VRM[llmName];
+        const node = vrm.humanoid.getNormalizedBoneNode(vrmName);
+        if (!node) continue;
+        const finger = isFingerBone(llmName);
+        const slerpT = finger ? fingerSlerpT : bodySlerpT;
+        const composedEuler = composed[llmName];
+        const nmmEuler = nmmOffset[vrmName as unknown as keyof typeof nmmOffset];
+
+        const base: [number, number, number] | null = composedEuler ?? null;
+        if (base) {
+          const final: [number, number, number] = nmmEuler
+            ? [base[0] + nmmEuler[0], base[1] + nmmEuler[1], base[2] + nmmEuler[2]]
+            : base;
+          node.quaternion.slerp(toQuat(final), slerpT);
+        } else if (nmmEuler) {
+          node.quaternion.slerp(
+            toQuat(nmmEuler as [number, number, number]),
+            slerpT,
+          );
+        } else {
+          node.quaternion.slerp(IDENTITY_QUAT, slerpT);
+        }
+      }
     } else {
-      // ===== Pose-preset fallback path (rules engine) =====
+      // ===== Pose-preset fallback path (rules engine / when queue is empty) =====
       const nmm = currentSign?.token.nmm;
       const offset = nmmFrameOffset(nmm, elapsedRef.current);
       const pose = posePoseRef.current;
