@@ -5,8 +5,10 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const LLM_TIMEOUT_MS = 12_000;
-const MODEL = "gpt-5";
+const LLM_TIMEOUT_MS = 20_000;
+// gpt-5-mini: a step up from gpt-4.1 on ISL grammar reasoning without the
+// multi-second reasoning chain that makes gpt-5 full feel unusable here.
+const MODEL = "gpt-5-mini";
 
 // --- Schema -----------------------------------------------------------------
 
