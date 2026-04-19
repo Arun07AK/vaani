@@ -19,6 +19,7 @@ let chunks = [];
 let chunkTimer = null;
 let active = false;
 let chunkCounter = 0;
+let consecutiveSilentChunks = 0;
 
 function say(type, payload) {
   try {
@@ -79,14 +80,44 @@ async function startRecording(streamId) {
       video: false,
     });
 
-    // Keep tab audio audible — tabCapture mutes it by default.
+    // Diagnostics: confirm the tab capture actually has an audio track.
+    const tabTracks = mediaStream.getAudioTracks();
+    if (tabTracks.length === 0) {
+      log("no audio tracks on tab capture — tab is silent or capture failed");
+      say("vaani.capture-error", {
+        message:
+          "tab capture has no audio track — play audio on the captured tab before starting VAANI",
+      });
+      active = false;
+      return;
+    }
+    const s = tabTracks[0].getSettings?.() || {};
+    log(
+      `tab audio: ${tabTracks.length} track(s) \u00b7 ${s.sampleRate ?? "?"}Hz \u00b7 ${s.channelCount ?? "?"}ch`,
+    );
+
     audioContext = new AudioContext();
     const src = audioContext.createMediaStreamSource(mediaStream);
+
+    // Keep tab audio audible for the user.
     src.connect(audioContext.destination);
+
+    // Separate recording branch through the audio graph. Feeding the raw
+    // tabCapture stream directly into MediaRecorder AND into the AudioContext
+    // produces empty WebM chunks (~900 B container overhead) on some Chrome
+    // versions because the AudioContext tap can starve the recorder's view
+    // of the stream. Routing through a MediaStreamDestination gives the
+    // recorder its own processed-audio stream.
+    const recDest = audioContext.createMediaStreamDestination();
+    src.connect(recDest);
+    const recStream = recDest.stream;
+    log(
+      `recorder stream: ${recStream.getAudioTracks().length} track(s) via AudioContext destination`,
+    );
 
     const mime = pickMime();
     log(`MediaRecorder mime=${mime ?? "default"}`);
-    recorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : undefined);
+    recorder = new MediaRecorder(recStream, mime ? { mimeType: mime } : undefined);
     chunks = [];
 
     recorder.addEventListener("dataavailable", (e) => {
@@ -130,6 +161,7 @@ function scheduleChunkStop() {
 
 function stopRecording() {
   active = false;
+  consecutiveSilentChunks = 0;
   if (chunkTimer) clearTimeout(chunkTimer);
   try {
     if (recorder && recorder.state !== "inactive") recorder.stop();
@@ -153,9 +185,16 @@ async function flushChunksToTranscribe(mime) {
   const n = chunkCounter;
   const blob = new Blob(chunks, { type: mime });
   if (blob.size < 5000) {
+    consecutiveSilentChunks += 1;
     log(`chunk ${n} \u00b7 skipped (too small, ${blob.size}b)`);
+    if (consecutiveSilentChunks === 5) {
+      log(
+        "5 silent chunks in a row \u00b7 play audio on the captured tab or reload VAANI after starting playback",
+      );
+    }
     return;
   }
+  consecutiveSilentChunks = 0;
 
   log(`chunk ${n} \u00b7 uploading ${blob.size}b`);
   const form = new FormData();
