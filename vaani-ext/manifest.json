@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "VAANI — Speech to ISL",
   "short_name": "VAANI",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Floating Indian Sign Language avatar that signs the audio of any web page in real time.",
   "permissions": ["activeTab", "tabCapture", "offscreen", "storage", "scripting"],
   "host_permissions": ["https://vaani-gold.vercel.app/*", "http://localhost:3000/*", "http://localhost:3002/*"],
