@@ -5,10 +5,14 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const LLM_TIMEOUT_MS = 20_000;
-// gpt-5-mini: a step up from gpt-4.1 on ISL grammar reasoning without the
-// multi-second reasoning chain that makes gpt-5 full feel unusable here.
-const MODEL = "gpt-5-mini";
+const LLM_TIMEOUT_MS = 15_000;
+// gpt-4.1 accepts a temperature knob (gpt-5-mini does not), so we can crank
+// determinism up and stamp out the LLM-drift-to-numerics/punctuation problem
+// that was hitting tier-4 silent idle in the pipeline. Warm latency is ~2-3 s,
+// comparable to gpt-5-mini.
+// Alternative (reverted): "gpt-5-mini" — faster but non-deterministic output
+// style; dropped here in favor of gpt-4.1 + temperature: 0.1.
+const MODEL = "gpt-4.1";
 
 // --- Schema -----------------------------------------------------------------
 
@@ -85,6 +89,13 @@ OUTPUT FORMAT:
 Respect input language — translate Hindi to ISL via SEMANTIC, not literal mapping.
 Example: "आपका नाम क्या है?" → glossed: ["YOUR","NAME","WHAT"], nmms: [null,null,"wh"].
 
+OUTPUT DISCIPLINE (hard requirement — every gloss renders on a 3D avatar):
+- Each gloss is ONLY A-Z characters. Hyphens are permitted ONLY inside THANK-YOU.
+- NEVER output numerals: "2" → TWO, "10" → TEN, "42" → FOUR TWO.
+- NEVER output apostrophes: "John's" → JOHN, "don't" → follows rule 4 (NOT postfix).
+- NEVER output punctuation, emoji, parentheses, asides, or commentary.
+- If a word doesn't map cleanly, pick the closest atomic English word. Do not fabricate hyphenated compounds.
+
 Return ONLY the JSON, no prose.`;
 
 // --- Cache ------------------------------------------------------------------
@@ -152,7 +163,9 @@ export async function POST(request: Request) {
     const completion = await openai.chat.completions.create(
       {
         model: MODEL,
-        // gpt-5 only accepts the default temperature; omit to avoid 400.
+        // Near-deterministic output: avoids gpt-5-mini-style drift into
+        // numerics / punctuation / emoji that would hit tier-4 silent idle.
+        temperature: 0.1,
         response_format: {
           type: "json_schema",
           json_schema: {

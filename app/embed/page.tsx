@@ -34,12 +34,44 @@ export default function EmbedPage() {
     signalReady();
     const t = setTimeout(signalReady, 500);
 
+    // #region agent log
+    let _lastTranscript = "";
+    let _msgCounter = 0;
+    const _dbg = (location: string, message: string, data: unknown) => {
+      try {
+        fetch('http://127.0.0.1:7391/ingest/0ca204d3-54b2-4929-9009-05fc8cd40158', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3103cc' },
+          body: JSON.stringify({ sessionId: '3103cc', location, message, data, timestamp: Date.now() }),
+        }).catch(() => {});
+      } catch {}
+    };
+    // #endregion
     const onMessage = (e: MessageEvent) => {
       const data = e.data as { type?: string; text?: string } | null;
       if (!data || typeof data !== "object") return;
       if (data.type === "vaani.transcript" && typeof data.text === "string") {
         const trimmed = data.text.trim();
-        if (trimmed) setTranscript(trimmed);
+        // #region agent log
+        _msgCounter += 1;
+        const isDup = trimmed === _lastTranscript;
+        _dbg('embed/page.tsx:onMessage', 'transcript received', {
+          counter: _msgCounter, len: trimmed.length, text: trimmed.slice(0, 120),
+          isDuplicateOfPrevious: isDup, currentStoreTranscript: useTranscriptionStore.getState().transcript.slice(0, 120),
+        });
+        _lastTranscript = trimmed;
+        // #endregion
+        if (trimmed) {
+          // Defend against React useEffect dep-equality skipping identical
+          // consecutive transcripts (Whisper often returns repeated "you",
+          // "thanks for watching", etc.). Append an invisible counter tag so
+          // the store value differs and the pipeline always re-fires.
+          const prev = useTranscriptionStore.getState().transcript;
+          const stripped = prev.replace(/\u200b+$/, "");
+          const tagged =
+            trimmed === stripped ? `${trimmed}\u200b` : trimmed;
+          setTranscript(tagged);
+        }
       }
       if (data.type === "vaani.reset") {
         useTranscriptionStore.getState().reset();

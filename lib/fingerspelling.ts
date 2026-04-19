@@ -53,7 +53,7 @@ export function fingerspellWord(word: string): SignComposition[] {
       palm: "PALM_OUT",
       location: "NEUTRAL_FORWARD",
       movement: "HOLD",
-      durationMs: 350,
+      durationMs: 220,
       source: `fingerspelled '${letter}'`,
     };
     return comp;
