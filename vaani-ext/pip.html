@@ -1,45 +1,200 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>VAANI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Devanagari:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      :root {
+        --bg:        #0a0a0f;
+        --surface:   #18181b;
+        --rule:      #27272a;
+        --rule-2:    #1f1f23;
+        --text:      #e4e4e7;
+        --muted:     #a1a1aa;
+        --muted-2:   #71717a;
+        --accent:    #8b5cf6;
+        --accent-400:#a78bfa;
+        --dot-ok:    #34d399;
+        --dot-warn:  #fbbf24;
+        --dot-err:   #f87171;
+        --dot-info:  #38bdf8;
+      }
+      * { box-sizing: border-box; }
       html, body {
-        margin: 0;
-        padding: 0;
+        margin: 0; padding: 0;
+        width: 100%; height: 100%;
+        overflow: hidden;
+        background: rgba(10, 10, 15, 0.96);
+        color: var(--text);
+        font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .pip {
+        width: 100%;
         height: 100%;
-        background: #05050f;
-        color: #ededec;
-        font-family: -apple-system, system-ui, sans-serif;
+        display: grid;
+        grid-template-rows: 28px 1fr 28px;
+      }
+
+      /* Drag handle row */
+      .drag {
+        padding: 0 12px;
+        display: flex; align-items: center; justify-content: space-between;
+        color: var(--muted);
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        letter-spacing: 0.01em;
+      }
+      .drag .left {
+        display: inline-flex; align-items: center; gap: 8px;
+      }
+      .drag .close {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 14px;
+        color: var(--muted-2);
+        cursor: pointer;
+        padding: 0 4px;
+        opacity: 0;
+        transition: opacity 160ms ease, color 160ms ease;
+        background: transparent; border: 0;
+      }
+      .pip:hover .close,
+      .drag:hover .close { opacity: 1; }
+      .close:hover { color: var(--text); }
+
+      .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        display: inline-block;
+      }
+      .dot.ok   { background: var(--dot-ok); }
+      .dot.warn { background: var(--dot-warn); }
+      .dot.err  { background: var(--dot-err); }
+      .dot.info { background: var(--dot-info); animation: softpulse 1.2s ease-in-out infinite; }
+      .dot.idle { background: var(--muted-2); }
+
+      @keyframes softpulse {
+        0%, 100% { box-shadow: 0 0 0 0    rgba(56, 189, 248, 0.6); }
+        50%      { box-shadow: 0 0 0 3px  rgba(56, 189, 248, 0.0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot.info { animation: none; }
+      }
+
+      /* Canvas cell — iframe fills it */
+      .canvas-cell {
+        position: relative;
+        margin: 0 12px;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        background: #08080b;
         overflow: hidden;
       }
+      .canvas-cell .corners span {
+        position: absolute; width: 8px; height: 8px;
+        border-color: var(--rule-2); border-style: solid;
+      }
+      .canvas-cell .corners .tl { top: -1px;    left: -1px;    border-width: 1px 0 0 1px; }
+      .canvas-cell .corners .tr { top: -1px;    right: -1px;   border-width: 1px 1px 0 0; }
+      .canvas-cell .corners .bl { bottom: -1px; left: -1px;    border-width: 0 0 1px 1px; }
+      .canvas-cell .corners .br { bottom: -1px; right: -1px;   border-width: 0 1px 1px 0; }
+
       #frame {
         width: 100%;
         height: 100%;
         border: 0;
         display: block;
-        background: #05050f;
+        background: #08080b;
       }
-      #status {
-        position: fixed;
-        left: 10px;
-        bottom: 10px;
-        font-size: 10px;
-        font-family: ui-monospace, Menlo, monospace;
-        color: rgba(255, 255, 255, 0.45);
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        pointer-events: none;
-        max-width: calc(100% - 20px);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+
+      /* Footer row — next + language */
+      .foot {
+        padding: 0 12px;
+        display: flex; align-items: center; justify-content: space-between;
+        color: var(--muted);
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11px;
+      }
+      .next {
+        display: inline-flex; gap: 8px; align-items: baseline;
+      }
+      .next .lbl { color: var(--muted-2); }
+      .next .sep { color: var(--rule); }
+      .next .w   { color: var(--text); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .next .w.deva {
+        font-family: "Noto Sans Devanagari", "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      .seg {
+        display: inline-flex; gap: 16px;
+        user-select: none;
+        color: var(--muted);
+      }
+      .seg button {
+        background: transparent; border: 0; padding: 2px 0;
+        font: inherit; color: inherit; cursor: pointer;
+        border-bottom: 1px solid transparent;
+        letter-spacing: 0.02em;
+      }
+      .seg button.on {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+      .seg button.deva {
+        font-family: "Noto Sans Devanagari", "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      button:focus-visible {
+        outline: 1px solid color-mix(in oklab, var(--accent) 60%, transparent);
+        outline-offset: 2px;
       }
     </style>
   </head>
   <body>
-    <iframe id="frame" src="https://vaani-gold.vercel.app/embed?mode=ext" allow="autoplay"></iframe>
-    <div id="status">vaani \u00b7 waiting for tab audio</div>
+    <div class="pip" role="region" aria-label="VAANI floating overlay">
+      <!-- Drag handle + status + close -->
+      <div class="drag">
+        <span class="left">
+          <span class="dot idle" id="status-dot" aria-hidden></span>
+          <span id="status-text">connecting</span>
+        </span>
+        <button class="close" id="close-btn" title="Close" aria-label="Close">×</button>
+      </div>
+
+      <!-- Canvas cell — iframe'd /embed page renders the avatar -->
+      <div class="canvas-cell">
+        <span class="corners" aria-hidden>
+          <span class="tl"></span><span class="tr"></span>
+          <span class="bl"></span><span class="br"></span>
+        </span>
+        <iframe
+          id="frame"
+          src="https://vaani-gold.vercel.app/embed?mode=ext"
+          allow="autoplay"
+        ></iframe>
+      </div>
+
+      <!-- Footer — next-up gloss + language toggle -->
+      <div class="foot">
+        <span class="next">
+          <span class="lbl">next</span>
+          <span class="sep">·</span>
+          <span class="w" id="next-text">—</span>
+        </span>
+        <div class="seg" role="tablist" aria-label="Language" id="lang-seg">
+          <button class="on" data-lang="en" role="tab" aria-selected="true">EN</button>
+          <button data-lang="hi" role="tab" aria-selected="false" class="deva">हिं</button>
+        </div>
+      </div>
+    </div>
+
     <script src="pip.js"></script>
   </body>
 </html>

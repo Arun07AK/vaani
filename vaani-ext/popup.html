@@ -1,58 +1,210 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>VAANI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Devanagari:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      html,
-      body {
+      :root {
+        --bg:        #0a0a0f;
+        --surface:   #18181b;
+        --rule:      #27272a;
+        --rule-2:    #1f1f23;
+        --text:      #e4e4e7;
+        --muted:     #a1a1aa;
+        --muted-2:   #71717a;
+        --accent:    #8b5cf6;
+        --accent-400:#a78bfa;
+        --dot-ok:    #34d399;
+        --dot-warn:  #fbbf24;
+        --dot-err:   #f87171;
+        --dot-info:  #38bdf8;
+      }
+      * { box-sizing: border-box; }
+      html, body {
         margin: 0;
-        padding: 16px;
-        width: 280px;
-        background: #0a0a0b;
-        color: #ededec;
-        font-family: -apple-system, system-ui, sans-serif;
-      }
-      h1 {
-        margin: 0 0 4px 0;
+        width: 320px;
+        height: 240px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
         font-size: 14px;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
       }
-      p {
-        margin: 0 0 12px 0;
-        font-size: 12px;
-        color: #8b8b88;
-        line-height: 1.45;
+      .mono  { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; letter-spacing: 0.01em; }
+      .deva  { font-family: "Noto Sans Devanagari", "JetBrains Mono", ui-monospace, monospace; }
+
+      .popup {
+        width: 100%; height: 100%;
+        display: flex; flex-direction: column;
+        background: var(--bg);
       }
-      button {
-        display: block;
+
+      .p-head {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--rule);
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .p-head .word {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+      }
+      .p-head .status {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--muted-2);
+        display: inline-flex; align-items: center; gap: 8px;
+      }
+      .dot {
+        width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+      }
+      .dot.ok   { background: var(--dot-ok); }
+      .dot.warn { background: var(--dot-warn); }
+      .dot.err  { background: var(--dot-err); }
+      .dot.info { background: var(--dot-info); }
+      .dot.idle { background: var(--muted-2); }
+
+      .p-main {
+        padding: 16px;
+        flex: 1;
+        display: flex; flex-direction: column; gap: 12px;
+      }
+      .casting {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 13px;
+        color: var(--text);
+        letter-spacing: 0.01em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .casting .lbl { color: var(--muted-2); }
+
+      .cast-btn {
+        height: 36px;
         width: 100%;
-        padding: 10px 12px;
-        border: 1px solid rgba(245, 165, 36, 0.4);
-        background: rgba(245, 165, 36, 0.08);
-        color: #f5a524;
-        font-family: ui-monospace, Menlo, monospace;
-        font-size: 12px;
-        letter-spacing: 0.15em;
-        text-transform: uppercase;
+        background: var(--accent);
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        font: 500 14px/1 "Inter", sans-serif;
         cursor: pointer;
+        transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
       }
-      button:hover {
-        background: rgba(245, 165, 36, 0.18);
+      .cast-btn:hover    { background: #7c4deb; }
+      .cast-btn:active   { background: #6d3fdc; }
+      .cast-btn:disabled { opacity: 0.6; cursor: wait; }
+      .cast-btn.on {
+        background: var(--surface);
+        color: var(--accent-400);
+        border: 1px solid color-mix(in oklab, var(--accent) 50%, var(--rule));
       }
-      .hint {
-        margin-top: 8px;
-        font-size: 10px;
-        color: #555;
+
+      .p-foot { border-top: 1px solid var(--rule); }
+      .row {
+        height: 32px;
+        padding: 0 16px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
+      .row + .row { border-top: 1px solid var(--rule); }
+      .row .k { color: var(--muted); font-size: 13px; }
+
+      .toggle-text {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+        padding: 0;
+        background: transparent;
+        border: 0;
+      }
+      .toggle-text.on { color: var(--text); }
+
+      .seg {
+        display: inline-flex;
+        gap: 16px;
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--muted);
+        user-select: none;
+      }
+      .seg button {
+        background: transparent;
+        border: 0;
+        padding: 2px 0;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        border-bottom: 1px solid transparent;
+        letter-spacing: 0.02em;
+      }
+      .seg button.on {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+
+      /* Focus rings */
+      button:focus-visible {
+        outline: 1px solid color-mix(in oklab, var(--accent) 60%, transparent);
+        outline-offset: 2px;
       }
     </style>
   </head>
   <body>
-    <h1>vaani</h1>
-    <p>Open a floating ISL avatar that signs this tab's audio in real time.</p>
-    <button id="start">Cast tab to VAANI</button>
-    <div class="hint">Chrome 116+ · tab audio stays audible</div>
+    <div class="popup" role="group" aria-label="VAANI toolbar popup">
+      <header class="p-head">
+        <span class="word">VAANI</span>
+        <span class="status">
+          <span class="dot ok" id="status-dot" aria-hidden></span>
+          <span id="status-text">ready</span>
+        </span>
+      </header>
+
+      <main class="p-main">
+        <div class="casting" title="Tab being cast">
+          <span class="lbl">casting:</span>
+          <span id="host">—</span>
+        </div>
+        <button id="start" class="cast-btn">Cast tab to VAANI</button>
+      </main>
+
+      <footer class="p-foot">
+        <div class="row">
+          <span class="k">keep audio audible</span>
+          <button
+            id="audio-toggle"
+            class="toggle-text on"
+            aria-pressed="true"
+          >
+            on
+          </button>
+        </div>
+        <div class="row">
+          <span class="k">language</span>
+          <div
+            class="seg"
+            role="tablist"
+            aria-label="Language"
+            id="lang-seg"
+          >
+            <button class="on" data-lang="en" role="tab" aria-selected="true">EN</button>
+            <button data-lang="hi" role="tab" aria-selected="false" class="deva">हिं</button>
+          </div>
+        </div>
+      </footer>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>
