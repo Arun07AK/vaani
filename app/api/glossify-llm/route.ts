@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     const completion = await openai.chat.completions.create(
       {
         model: MODEL,
-        temperature: 0.2,
+        // gpt-5 only accepts the default temperature; omit to avoid 400.
         response_format: {
           type: "json_schema",
           json_schema: {
