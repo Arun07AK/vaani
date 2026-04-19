@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VAANI</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #05050f;
+        color: #ededec;
+        font-family: -apple-system, system-ui, sans-serif;
+        overflow: hidden;
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #05050f;
+      }
+      .status {
+        position: fixed;
+        left: 10px;
+        bottom: 10px;
+        font-size: 10px;
+        font-family: ui-monospace, Menlo, monospace;
+        color: rgba(255, 255, 255, 0.45);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" src="https://vaani-gold.vercel.app/embed?mode=ext" allow="autoplay"></iframe>
+    <div id="status" class="status">vaani · extension · connecting</div>
+    <script src="pip.js"></script>
+  </body>
+</html>

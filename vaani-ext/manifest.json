@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "VAANI — Speech to ISL",
+  "short_name": "VAANI",
+  "version": "0.1.0",
+  "description": "Floating Indian Sign Language avatar that signs the audio of any web page in real time.",
+  "permissions": ["activeTab", "tabCapture", "offscreen", "storage", "scripting"],
+  "host_permissions": ["https://vaani-gold.vercel.app/*", "http://localhost:3000/*", "http://localhost:3002/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cast this page's audio to VAANI",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["pip.html", "pip.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

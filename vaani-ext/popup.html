@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VAANI</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 16px;
+        width: 280px;
+        background: #0a0a0b;
+        color: #ededec;
+        font-family: -apple-system, system-ui, sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      p {
+        margin: 0 0 12px 0;
+        font-size: 12px;
+        color: #8b8b88;
+        line-height: 1.45;
+      }
+      button {
+        display: block;
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid rgba(245, 165, 36, 0.4);
+        background: rgba(245, 165, 36, 0.08);
+        color: #f5a524;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 12px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(245, 165, 36, 0.18);
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 10px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>vaani</h1>
+    <p>Open a floating ISL avatar that signs this tab's audio in real time.</p>
+    <button id="start">Cast tab to VAANI</button>
+    <div class="hint">Chrome 116+ · tab audio stays audible</div>
+    <script src="popup.js"></script>
+  </body>
+</html>
