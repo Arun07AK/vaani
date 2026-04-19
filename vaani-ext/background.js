@@ -1,11 +1,11 @@
 // VAANI extension — MV3 service worker.
-// Role: on icon click, capture the active tab's audio and route PCM
-// chunks to an offscreen document (which owns the audio pipeline because
-// MV3 service workers can't hold MediaStreams), and open a Document
-// Picture-in-Picture window that shows the VRM avatar signing.
+// Role: on user click in the popup, grab a tab-capture streamId for the
+// active tab, hand it to an offscreen document (which holds the
+// MediaStream because MV3 service workers can't), and relay
+// transcripts from the offscreen doc to all other extension views
+// (the floating popup window that renders the avatar).
 
 const OFFSCREEN_URL = chrome.runtime.getURL("offscreen.html");
-const PIP_URL = chrome.runtime.getURL("pip.html");
 
 async function hasOffscreenDocument() {
   if (typeof chrome.runtime.getContexts !== "function") return false;
@@ -22,29 +22,37 @@ async function ensureOffscreen() {
     url: OFFSCREEN_URL,
     reasons: ["USER_MEDIA"],
     justification:
-      "VAANI captures the active tab's audio, resamples it, and POSTs chunks to the transcription backend.",
+      "VAANI captures the active tab's audio and posts chunks to the transcription backend.",
   });
 }
 
 async function closeOffscreen() {
   if (await hasOffscreenDocument()) {
-    await chrome.offscreen.closeDocument();
+    try {
+      await chrome.offscreen.closeDocument();
+    } catch (e) {
+      console.warn("[vaani bg] closeOffscreen", e);
+    }
   }
 }
 
 async function startCapture(tabId) {
   await ensureOffscreen();
 
-  // tabCapture in MV3 needs a media stream ID handed to the offscreen doc.
   const streamId = await new Promise((resolve, reject) => {
-    chrome.tabCapture.getMediaStreamId(
-      { targetTabId: tabId },
-      (id) => {
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(id);
-      },
-    );
+    chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message || "tabCapture failed"));
+      } else if (!id) {
+        reject(new Error("tabCapture returned empty stream id"));
+      } else {
+        resolve(id);
+      }
+    });
   });
+
+  // Give the offscreen document a moment to mount the message listener.
+  await new Promise((r) => setTimeout(r, 150));
 
   chrome.runtime.sendMessage({
     type: "vaani.start",
@@ -60,19 +68,35 @@ async function stopCapture() {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "vaani.toggle-capture") {
-    if (msg.active) void startCapture(msg.tabId);
-    else void stopCapture();
-    sendResponse({ ok: true });
+    (async () => {
+      try {
+        if (msg.active) {
+          await startCapture(msg.tabId);
+          sendResponse({ ok: true });
+        } else {
+          await stopCapture();
+          sendResponse({ ok: true });
+        }
+      } catch (err) {
+        console.error("[vaani bg] toggle-capture", err);
+        sendResponse({ error: err instanceof Error ? err.message : String(err) });
+      }
+    })();
+    return true; // async
   }
-  // Forward transcript events from offscreen → any open PiP/popup window.
-  if (msg?.type === "vaani.transcript") {
-    chrome.runtime.sendMessage(msg);
-  }
-  return true;
+  // Pass-through: offscreen → popup/pip windows.
+  // chrome.runtime.sendMessage already broadcasts to all extension contexts,
+  // so no manual relay is needed here.
+  return false;
 });
 
-// Also expose a direct icon-click toggle for speed.
+// Icon click = shortcut to popup behavior (popup still handles the window),
+// but also safe as a direct trigger if popup is bypassed.
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab?.id) return;
-  await startCapture(tab.id);
+  try {
+    await startCapture(tab.id);
+  } catch (err) {
+    console.error("[vaani bg] action click", err);
+  }
 });

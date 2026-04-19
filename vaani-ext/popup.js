@@ -1,53 +1,64 @@
 const btn = document.getElementById("start");
+const statusEl = document.createElement("div");
+statusEl.style.cssText = "margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#8b8b88;min-height:14px";
+document.body.appendChild(statusEl);
+
+function log(msg) {
+  statusEl.textContent = msg;
+  console.log("[vaani popup]", msg);
+}
 
 btn.addEventListener("click", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
+  btn.disabled = true;
+  log("getting active tab\u2026");
 
-  if (!("documentPictureInPicture" in window)) {
-    alert("This Chrome version doesn't support Document Picture-in-Picture (need 116+).");
-    return;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      log("no active tab found");
+      btn.disabled = false;
+      return;
+    }
+
+    log("opening vaani window\u2026");
+
+    // Open a dedicated Chrome popup window (works on all Chrome versions,
+    // no Document PiP dependency, survives tab navigation).
+    const width = 380;
+    const height = 520;
+    const left = (screen.availWidth || 1440) - width - 20;
+    const top = 60;
+
+    await chrome.windows.create({
+      url: chrome.runtime.getURL("pip.html"),
+      type: "popup",
+      width,
+      height,
+      left,
+      top,
+      focused: false,
+    });
+
+    log("starting tab capture\u2026");
+
+    // Trigger the background service worker to start capturing.
+    const response = await chrome.runtime.sendMessage({
+      type: "vaani.toggle-capture",
+      active: true,
+      tabId: tab.id,
+    });
+
+    if (response?.error) {
+      log(`capture failed: ${response.error}`);
+      btn.disabled = false;
+      return;
+    }
+
+    log("active \u2014 closing popup\u2026");
+    setTimeout(() => window.close(), 300);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log(`error: ${msg}`);
+    btn.disabled = false;
   }
-
-  // Open the Document PiP window from the popup context — user gesture is present.
-  const pipWin = await window.documentPictureInPicture.requestWindow({
-    width: 360,
-    height: 480,
-  });
-
-  // Build the PiP DOM with safe DOM APIs (no innerHTML).
-  const doc = pipWin.document;
-  doc.title = "VAANI";
-
-  const meta = doc.createElement("meta");
-  meta.setAttribute("charset", "utf-8");
-  doc.head.appendChild(meta);
-
-  Object.assign(doc.body.style, {
-    margin: "0",
-    background: "#05050f",
-    color: "#ededec",
-    fontFamily: "system-ui",
-    height: "100vh",
-  });
-
-  const iframe = doc.createElement("iframe");
-  iframe.src = chrome.runtime.getURL("pip.html");
-  iframe.setAttribute("allow", "autoplay");
-  Object.assign(iframe.style, {
-    border: "0",
-    width: "100%",
-    height: "100%",
-    display: "block",
-  });
-  doc.body.appendChild(iframe);
-
-  // Kick off tab capture via the service worker.
-  await chrome.runtime.sendMessage({
-    type: "vaani.toggle-capture",
-    active: true,
-    tabId: tab.id,
-  });
-
-  window.close();
 });
