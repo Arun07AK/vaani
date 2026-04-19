@@ -1,15 +1,26 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
+const devanagari = Noto_Sans_Devanagari({
+  subsets: ["devanagari"],
+  weight: ["400", "500"],
+  variable: "--font-deva",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -26,9 +37,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className={`${inter.variable} ${jetBrainsMono.variable} ${devanagari.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full bg-black text-zinc-100">{children}</body>
+      <body className="min-h-full bg-[color:var(--vaani-bg-deep)] text-[color:var(--vaani-text)] font-sans">
+        {children}
+      </body>
     </html>
   );
 }
