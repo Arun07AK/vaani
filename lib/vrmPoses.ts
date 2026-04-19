@@ -107,3 +107,45 @@ export function nmmFrameOffset(
   }
   return {};
 }
+
+/** ARKit morph-target driver for ISL non-manual markers (facial expression).
+ *  Returns a map of morph-target name → influence 0..1. Consumer looks these
+ *  up against morphTargetDictionary on the VRM head/face mesh. */
+export type NmmMorphs = {
+  browInnerUp?: number;
+  browDownLeft?: number;
+  browDownRight?: number;
+  mouthFunnel?: number;
+  mouthPucker?: number;
+  eyeWideLeft?: number;
+  eyeWideRight?: number;
+};
+
+export function nmmMorphTargets(
+  nmm: "wh" | "neg" | "yn" | undefined,
+  elapsedSec: number,
+): NmmMorphs {
+  if (!nmm) return {};
+  // Ease in over 250ms so the expression lands with the sign, not before it.
+  const attack = Math.min(1, elapsedSec / 0.25);
+  if (nmm === "wh") {
+    // ISL WH-questions: furrowed+raised inner brows, slight mouth-funnel
+    return {
+      browInnerUp: 0.9 * attack,
+      mouthFunnel: 0.25 * attack,
+    };
+  }
+  if (nmm === "yn") {
+    // Yes/No questions: sustained inner-brow raise with eye widening
+    return {
+      browInnerUp: 1.0 * attack,
+      eyeWideLeft: 0.35 * attack,
+      eyeWideRight: 0.35 * attack,
+    };
+  }
+  // neg: compressed brows during the head shake
+  return {
+    browDownLeft: 0.6 * attack,
+    browDownRight: 0.6 * attack,
+  };
+}

@@ -11,10 +11,13 @@ import {
 import { Euler, MathUtils, Quaternion } from "three";
 import {
   nmmFrameOffset,
+  nmmMorphTargets,
   poseFor,
   type BoneEuler as PoseBoneEuler,
+  type NmmMorphs,
   type Pose,
 } from "@/lib/vrmPoses";
+import { Mesh } from "three";
 import type { GlossToken } from "@/lib/stores/pipeline";
 import type { SignEntry } from "@/lib/lexicon";
 import type { BoneName } from "@/lib/bones";
@@ -147,9 +150,41 @@ export default function VRMAvatar({
   const readyCbRef = useRef(onReady);
   readyCbRef.current = onReady;
 
+  // Cache of ARKit morph-target locations per face/head mesh. On RPM-derived
+  // VRMs the morphs live on the Wolf3D_* meshes, not on vrm.expressionManager,
+  // so we drive morphTargetInfluences directly. Discovered once on load.
+  const morphTargetsRef = useRef<
+    Array<{ mesh: Mesh; name: keyof NmmMorphs; index: number }>
+  >([]);
+
   useEffect(() => {
     if (!vrm) return;
     vrm.scene.rotation.y = 0;
+    // Discover ARKit morph targets for facial NMM driving.
+    const targets: Array<{
+      mesh: Mesh;
+      name: keyof NmmMorphs;
+      index: number;
+    }> = [];
+    const watched: (keyof NmmMorphs)[] = [
+      "browInnerUp",
+      "browDownLeft",
+      "browDownRight",
+      "mouthFunnel",
+      "mouthPucker",
+      "eyeWideLeft",
+      "eyeWideRight",
+    ];
+    vrm.scene.traverse((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.isMesh || !mesh.morphTargetDictionary || !mesh.morphTargetInfluences)
+        return;
+      for (const name of watched) {
+        const idx = mesh.morphTargetDictionary[name];
+        if (idx !== undefined) targets.push({ mesh, name, index: idx });
+      }
+    });
+    morphTargetsRef.current = targets;
     setReady(true);
     readyCbRef.current?.();
   }, [vrm]);
@@ -176,6 +211,43 @@ export default function VRMAvatar({
     const ease = 0.25 + 0.75 * tEase * tEase;
     const bodySlerpT = MathUtils.clamp(dt * 14 * ease, 0, 1);
     const fingerSlerpT = MathUtils.clamp(dt * 40 * ease, 0, 1);
+
+    // Drive ARKit morph targets for facial NMMs. Applied on both active
+    // paths; when nmm is undefined or sign is idle, morphs lerp back to 0.
+    const morphTargets = morphTargetsRef.current;
+    const targetMorphs = active
+      ? nmmMorphTargets(captureNmm, captureElapsedSec)
+      : ({} as ReturnType<typeof nmmMorphTargets>);
+    const morphLerpT = MathUtils.clamp(dt * 10, 0, 1);
+    // Path A: direct morphTargetInfluences on Wolf3D_* meshes (RPM exports).
+    for (const { mesh, name, index } of morphTargets) {
+      const target = (targetMorphs[name] ?? 0) as number;
+      const current = mesh.morphTargetInfluences?.[index] ?? 0;
+      if (mesh.morphTargetInfluences) {
+        mesh.morphTargetInfluences[index] =
+          current + (target - current) * morphLerpT;
+      }
+    }
+    // Path B: VRM expressionManager (some RPM→VRM converters map morphs
+    // to VRM expressions). Harmless if the expression isn't registered.
+    const expr = vrm.expressionManager;
+    if (expr) {
+      for (const name of [
+        "browInnerUp",
+        "browDownLeft",
+        "browDownRight",
+        "mouthFunnel",
+        "mouthPucker",
+        "eyeWideLeft",
+        "eyeWideRight",
+      ] as const) {
+        if (expr.getExpression?.(name)) {
+          const target = (targetMorphs[name] ?? 0) as number;
+          const current = expr.getValue(name) ?? 0;
+          expr.setValue(name, current + (target - current) * morphLerpT);
+        }
+      }
+    }
 
     if (captureClip) {
       // ===== Mocap capture playback path =====
