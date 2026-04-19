@@ -1,6 +1,7 @@
 const btn = document.getElementById("start");
 const statusEl = document.createElement("div");
-statusEl.style.cssText = "margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#8b8b88;min-height:14px";
+statusEl.style.cssText =
+  "margin-top:10px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#8b8b88;min-height:14px;word-break:break-word";
 document.body.appendChild(statusEl);
 
 function log(msg) {
@@ -20,10 +21,24 @@ btn.addEventListener("click", async () => {
       return;
     }
 
-    log("opening vaani window\u2026");
+    // Start capture FIRST — the popup user gesture is what authorizes
+    // tabCapture.getMediaStreamId for the target tab. Opening a new
+    // window before this call breaks that context.
+    log("starting tab capture\u2026");
+    const response = await chrome.runtime.sendMessage({
+      type: "vaani.toggle-capture",
+      active: true,
+      tabId: tab.id,
+    });
 
-    // Open a dedicated Chrome popup window (works on all Chrome versions,
-    // no Document PiP dependency, survives tab navigation).
+    if (!response || response.error) {
+      log(`capture failed: ${response?.error ?? "no response"}`);
+      btn.disabled = false;
+      return;
+    }
+
+    // Capture is live. Now open the floating window to render the avatar.
+    log("opening vaani window\u2026");
     const width = 380;
     const height = 520;
     const left = (screen.availWidth || 1440) - width - 20;
@@ -38,21 +53,6 @@ btn.addEventListener("click", async () => {
       top,
       focused: false,
     });
-
-    log("starting tab capture\u2026");
-
-    // Trigger the background service worker to start capturing.
-    const response = await chrome.runtime.sendMessage({
-      type: "vaani.toggle-capture",
-      active: true,
-      tabId: tab.id,
-    });
-
-    if (response?.error) {
-      log(`capture failed: ${response.error}`);
-      btn.disabled = false;
-      return;
-    }
 
     log("active \u2014 closing popup\u2026");
     setTimeout(() => window.close(), 300);
