@@ -26,8 +26,9 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# System-audio capture (SCStream via screencapturekit) lands in a follow-up.
-# v4.3-phase-1 ships the shell: menu-bar, always-on-top window, iframe /embed,
-# transcript bridge. Manual test path: inject transcripts from Rust via the
-# `vaani-transcript` event (see debug command in lib.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+# Direct ScreenCaptureKit integration — ruhear's pinning is stale, and SCK
+# 1.5 exposes a clean `CMSampleBuffer::audio_buffer_list()` helper we use
+# directly in audio.rs.
+screencapturekit = "1.5"
 

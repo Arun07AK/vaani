@@ -1,6 +1,4 @@
-#![allow(dead_code)]
-//! HTTP uploader for WAV chunks. Ready to plug into audio.rs once the
-//! ScreenCaptureKit pipeline lands.
+//! HTTP uploader for WAV chunks → /api/transcribe.
 
 use anyhow::Result;
 use reqwest::multipart::{Form, Part};
