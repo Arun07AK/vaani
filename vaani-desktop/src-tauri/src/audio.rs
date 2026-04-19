@@ -220,11 +220,19 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
                     continue;
                 }
             };
-            let lang = state.lang();
+            // Whisper wants ISO 639-1 codes ("en", "hi"), not "en-IN".
+            let lang_full = state.lang();
+            let lang = lang_full
+                .split(['-', '_'])
+                .next()
+                .unwrap_or(&lang_full)
+                .to_lowercase();
             let client_clone = client.clone();
             let app_clone = app.clone();
             let state_clone = state.clone();
+            let wav_len = wav.len();
             tokio::spawn(async move {
+                tracing::info!(bytes = wav_len, "uploading chunk");
                 let _ = app_clone.emit(
                     "vaani-status",
                     serde_json::json!({"kind":"processing","message":"transcribing…"}),
@@ -243,16 +251,25 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
                         );
                     }
                     Ok(None) => {
+                        tracing::info!("empty transcript — chunk was non-speech");
                         let _ = app_clone.emit(
                             "vaani-status",
                             serde_json::json!({"kind":"listening","message":"listening to system audio"}),
                         );
                     }
                     Err(e) => {
-                        tracing::warn!("upload failed: {e:?}");
+                        // Put the actual error string into the status bar so we
+                        // can diagnose from the UI alone (network vs server vs
+                        // TLS vs body). Truncate so it fits the 320px window.
+                        let full = format!("{e}");
+                        let short = full.chars().take(90).collect::<String>();
+                        tracing::warn!("upload failed: {full}");
                         let _ = app_clone.emit(
                             "vaani-status",
-                            serde_json::json!({"kind":"error","message":"upload failed — retrying"}),
+                            serde_json::json!({
+                                "kind": "error",
+                                "message": format!("upload: {short}"),
+                            }),
                         );
                     }
                 }

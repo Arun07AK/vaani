@@ -40,7 +40,11 @@ export async function POST(request: Request) {
   const uploadFile = new File([asBlob], fileName, { type: fileType });
 
   const langField = formData.get("lang");
-  const lang = typeof langField === "string" && langField.trim() ? langField.trim() : undefined;
+  // Whisper wants ISO 639-1 ("en", "hi"), not region-suffixed codes ("en-IN").
+  // Accept both shapes from clients and strip anything after the first hyphen.
+  const langRaw =
+    typeof langField === "string" && langField.trim() ? langField.trim() : undefined;
+  const lang = langRaw ? langRaw.split(/[-_]/)[0].toLowerCase() : undefined;
 
   const openai = new OpenAI({ apiKey });
   try {
