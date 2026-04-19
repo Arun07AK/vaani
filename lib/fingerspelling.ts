@@ -60,7 +60,9 @@ export function fingerspellWord(word: string): SignComposition[] {
   });
 }
 
-/** Cheap check — does the word contain only letters our alphabet can spell? */
+/** Cheap check — does the word contain at least one spellable letter, and only
+ *  letters + common separators (hyphens, underscores, whitespace)? Separators
+ *  are stripped by fingerspellWord before rendering. */
 export function canFingerspell(word: string): boolean {
-  return /^[A-Za-z]+$/.test(word);
+  return /[A-Za-z]/.test(word) && /^[A-Za-z\-_\s]+$/.test(word);
 }

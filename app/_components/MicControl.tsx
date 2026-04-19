@@ -107,11 +107,17 @@ export default function MicControl() {
               "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider",
               activeEngine === "mocap"
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                : "border-amber-500/40 bg-amber-500/10 text-amber-300",
+                : activeEngine === "composition"
+                  ? "border-sky-500/40 bg-sky-500/10 text-sky-300"
+                  : "border-amber-500/40 bg-amber-500/10 text-amber-300",
             ].join(" ")}
           >
             <Sparkles className="h-3 w-3" />
-            {activeEngine === "mocap" ? "real motion capture" : "rules fallback"}
+            {activeEngine === "mocap"
+              ? "real motion capture"
+              : activeEngine === "composition"
+                ? "composed from ISL primitives"
+                : "rules fallback"}
           </div>
         </div>
       )}

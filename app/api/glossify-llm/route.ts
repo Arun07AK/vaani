@@ -5,8 +5,8 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const LLM_TIMEOUT_MS = 10_000;
-const MODEL = "gpt-4o-mini";
+const LLM_TIMEOUT_MS = 12_000;
+const MODEL = "gpt-4.1";
 
 // --- Schema -----------------------------------------------------------------
 
@@ -73,7 +73,11 @@ PREFER these captured glosses when semantically equivalent
 HELLO, THANK-YOU, I, MY, YOU, FRIEND, NAME, WATER, WANT, WHAT, SEE, YES, NO.
 
 OUTPUT FORMAT:
-- glossed: array of uppercase English glosses, hyphenate multi-word (THANK-YOU).
+- glossed: array of single-word uppercase English glosses.
+  Keep each gloss atomic. Do NOT hyphenate arbitrary compounds.
+  The ONLY allowed hyphenated glosses are fixed ISL compounds: THANK-YOU.
+  "good morning" → ["GOOD","MORNING"] (two entries), not ["GOOD-MORNING"].
+  "your name" → ["YOUR","NAME"] (two entries).
 - nmms: array of equal length, each entry one of "wh" | "neg" | "yn" | null.
 
 Respect input language — translate Hindi to ISL via SEMANTIC, not literal mapping.

@@ -110,6 +110,8 @@ export function useTranscriptPipeline(): void {
       let anyComposition = false;
       let anyFingerspell = false;
 
+      const COMPOUND_SEP_RE = /[-_\s]+/;
+
       for (const token of tokens) {
         const captureUrl = lookupCapture(token.text, manifest);
         if (captureUrl) {
@@ -138,23 +140,72 @@ export function useTranscriptPipeline(): void {
           continue;
         }
 
-        // Tier 3 — fingerspell.
-        if (canFingerspell(token.text)) {
-          const letters = fingerspellWord(token.text);
-          for (let i = 0; i < letters.length; i++) {
-            flatItems.push({
-              gloss: `${token.text}[${token.text[i]?.toUpperCase() ?? "?"}]`,
-              captureUrl: null,
-              composition: letters[i],
-              nmm: i === letters.length - 1 ? token.nmm : undefined,
-              durationMs: letters[i].durationMs,
-            });
+        // Tier 2b — compound gloss (e.g. "GOOD-MORNING"): split and re-resolve
+        // each sub-part through captures+decomp. NMM rides on the last sub-part.
+        if (COMPOUND_SEP_RE.test(token.text)) {
+          const parts = token.text.split(COMPOUND_SEP_RE).filter(Boolean);
+          if (parts.length >= 2) {
+            const subItems: CaptureQueueItem[] = [];
+            let subMocap = false;
+            let subComposition = false;
+            let allResolved = true;
+            for (const part of parts) {
+              const partCapture = lookupCapture(part, manifest);
+              if (partCapture) {
+                subItems.push({
+                  gloss: part,
+                  captureUrl: partCapture,
+                  nmm: undefined,
+                  durationMs: 1400,
+                });
+                subMocap = true;
+                continue;
+              }
+              const partDecomp = decompositionFor(part);
+              if (partDecomp) {
+                subItems.push({
+                  gloss: part,
+                  captureUrl: null,
+                  composition: partDecomp,
+                  nmm: undefined,
+                  durationMs: partDecomp.durationMs,
+                });
+                subComposition = true;
+                continue;
+              }
+              allResolved = false;
+              break;
+            }
+            if (allResolved && subItems.length >= 2) {
+              if (token.nmm) subItems[subItems.length - 1].nmm = token.nmm;
+              flatItems.push(...subItems);
+              if (subMocap) anyMocap = true;
+              if (subComposition) anyComposition = true;
+              continue;
+            }
           }
-          anyFingerspell = true;
-          continue;
         }
 
-        // Tier 4 — pose-preset fallback (legacy path).
+        // Tier 3 — fingerspell (strips separators internally).
+        if (canFingerspell(token.text)) {
+          const letters = fingerspellWord(token.text);
+          if (letters.length > 0) {
+            const clean = token.text.toUpperCase().replace(/[^A-Z]/g, "");
+            for (let i = 0; i < letters.length; i++) {
+              flatItems.push({
+                gloss: `${clean}[${clean[i] ?? "?"}]`,
+                captureUrl: null,
+                composition: letters[i],
+                nmm: i === letters.length - 1 ? token.nmm : undefined,
+                durationMs: letters[i].durationMs,
+              });
+            }
+            anyFingerspell = true;
+            continue;
+          }
+        }
+
+        // Tier 4 — pose-preset fallback (last resort).
         flatItems.push({
           gloss: token.text,
           captureUrl: null,
