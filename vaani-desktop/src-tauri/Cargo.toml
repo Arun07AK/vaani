@@ -1,0 +1,33 @@
+[package]
+name = "vaani-desktop"
+version = "0.1.0"
+description = "VAANI — ISL avatar buddy overlay for macOS"
+authors = ["Arun AK"]
+edition = "2021"
+
+[lib]
+name = "vaani_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+parking_lot = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "multipart", "json"] }
+hound = "3.5"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# System-audio capture (SCStream via screencapturekit) lands in a follow-up.
+# v4.3-phase-1 ships the shell: menu-bar, always-on-top window, iframe /embed,
+# transcript bridge. Manual test path: inject transcripts from Rust via the
+# `vaani-transcript` event (see debug command in lib.rs).
+
