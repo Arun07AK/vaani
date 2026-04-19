@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const LLM_TIMEOUT_MS = 12_000;
-const MODEL = "gpt-4.1";
+const MODEL = "gpt-5";
 
 // --- Schema -----------------------------------------------------------------
 

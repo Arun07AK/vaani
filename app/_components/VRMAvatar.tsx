@@ -24,6 +24,13 @@ import {
 } from "@/lib/capturePlayer";
 import { armPoseFor, REST_POSE } from "@/lib/signArmPoses";
 import { composeSign, type SignComposition } from "@/lib/signCompose";
+import { HANDSHAPES, leftFingerPose } from "@/lib/handshapes";
+
+// Left-hand rest pose (FLAT_5, relaxed open). Used to backfill missing
+// left-hand data in mocap captures so the left fingers don't freeze at
+// T-pose straight while the right hand (which IS captured) articulates.
+const LEFT_REST_HAND: Partial<Record<BoneName, [number, number, number]>> =
+  leftFingerPose(HANDSHAPES.FLAT_5);
 
 const VRM_URL = "/avatars/vaani.vrm";
 
@@ -180,6 +187,10 @@ export default function VRMAvatar({
       const sampled = sampleClip(captureClip, captureElapsedSec);
       const nmmOffset = nmmFrameOffset(captureNmm, captureElapsedSec);
       const armPose = captureGloss ? armPoseFor(captureGloss) : REST_POSE;
+      // Many ISLRTC captures are one-handed — the signer's LEFT hand is out
+      // of frame, so MediaPipe never wrote left-finger bones. Detect this
+      // once per frame and backfill left fingers with a neutral rest pose.
+      const leftHandMocapMissing = !sampled.has("leftIndexProximal");
 
       for (const llmName of Object.keys(LLM_BONE_TO_VRM) as BoneName[]) {
         const vrmName = LLM_BONE_TO_VRM[llmName];
@@ -195,10 +206,16 @@ export default function VRMAvatar({
           ? [-rawMocap[0], rawMocap[1], -rawMocap[2]]
           : undefined;
         const arm = armPose[llmName];
+        const leftRest =
+          leftHandMocapMissing && finger && llmName.startsWith("left")
+            ? LEFT_REST_HAND[llmName]
+            : undefined;
         const nmmEuler = nmmOffset[vrmName as unknown as keyof typeof nmmOffset];
 
-        // Prefer mocap (fingers), then per-sign arm pose, then identity.
-        let base: [number, number, number] | null = mocap ?? arm ?? null;
+        // Prefer mocap (fingers), then per-sign arm pose, then left-hand
+        // rest backfill (one-handed captures), then identity.
+        let base: [number, number, number] | null =
+          mocap ?? arm ?? leftRest ?? null;
         if (base && finger) {
           // Amplitude boost for finger Z (curl axis). Clamp so we don't
           // hyperextend beyond anatomical joint limits.

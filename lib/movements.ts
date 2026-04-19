@@ -15,7 +15,10 @@ import type { BoneName } from "./bones";
 
 export type BoneDelta = Partial<Record<BoneName, [number, number, number]>>;
 
-export type Movement = (tNorm: number, opts?: { leftHanded?: boolean }) => BoneDelta;
+export type Movement = (
+  tNorm: number,
+  opts?: { leftHanded?: boolean; oneHanded?: boolean },
+) => BoneDelta;
 
 // ---- Individual movements --------------------------------------------------
 
@@ -185,6 +188,23 @@ export const MOVEMENTS: Record<string, Movement> = {
 
 export type MovementName = keyof typeof MOVEMENTS;
 
+/**
+ * One-handed gate. Strips any `left*` keys from the movement delta so the
+ * non-dominant arm stays at rest on single-handed signs (otherwise it would
+ * tap/circle in empty space next to the body). Head bones pass through.
+ */
+function stripLeftSideKeys(delta: BoneDelta): BoneDelta {
+  const out: BoneDelta = {};
+  for (const [k, v] of Object.entries(delta)) {
+    if (!k.startsWith("left")) out[k as BoneName] = v;
+  }
+  return out;
+}
+
 export function movementFor(name: string): Movement {
-  return MOVEMENTS[name] ?? HOLD;
+  const base = MOVEMENTS[name] ?? HOLD;
+  return (tNorm, opts) => {
+    const delta = base(tNorm, opts);
+    return opts?.oneHanded ? stripLeftSideKeys(delta) : delta;
+  };
 }

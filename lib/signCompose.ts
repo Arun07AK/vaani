@@ -84,6 +84,7 @@ export function composeSign(spec: SignComposition, tNorm: number): BonePose {
   let base = merge(domLocation, domPalm, domHand);
 
   // Non-dominant hand (two-handed signs).
+  const isOneHanded = !spec.nondominantHandshape;
   if (spec.nondominantHandshape) {
     const nondomLocName = spec.nondominantLocation ?? spec.location;
     const nondomPalmName = spec.nondominantPalm ?? spec.palm;
@@ -94,12 +95,19 @@ export function composeSign(spec: SignComposition, tNorm: number): BonePose {
     const nondomHand = leftFingerPose(HANDSHAPES[spec.nondominantHandshape] ?? HANDSHAPES.FLAT_5);
     base = merge(base, nondomLocation, nondomPalm, nondomHand);
   } else {
-    // Single-handed: put the left arm at rest.
-    base = merge(base, leftArmLocation(LOCATIONS.NEUTRAL_SIDE));
+    // Single-handed: left arm at rest, left fingers in a relaxed open
+    // pose (FLAT_5). Without the finger pose, the left fingers slerp to
+    // identity → T-pose straight → looks frozen next to the curled right.
+    base = merge(
+      base,
+      leftArmLocation(LOCATIONS.NEUTRAL_SIDE),
+      leftFingerPose(HANDSHAPES.FLAT_5),
+    );
   }
 
-  // Movement delta.
-  const delta = movementFor(spec.movement)(tNorm);
+  // Movement delta — strip left-side keys for single-handed signs so the
+  // non-dominant arm doesn't tap/circle in empty space.
+  const delta = movementFor(spec.movement)(tNorm, { oneHanded: isOneHanded });
   return add(base, delta);
 }
 
