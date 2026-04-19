@@ -1,21 +1,27 @@
-//! System-audio capture via ScreenCaptureKit.
+//! System-audio capture via ScreenCaptureKit + upload pipeline.
 //!
-//! Flow:
-//!   SCShareableContent → SCContentFilter(display) → SCStream with
-//!   captures_audio(true) → SCStreamOutputTrait delegate pushes Float32
-//!   PCM into a shared ring buffer (48 kHz stereo, non-interleaved).
+//! Wait order on startup: SCStream starts immediately (so the first system
+//! audio samples aren't lost), but the drain+upload loop blocks on
+//! `state.frontend_ready` — signalled by the TS bridge via
+//! `invoke("frontend_ready")` — so no `vaani-transcript` event is emitted
+//! before the frontend has registered its Tauri listeners.
 //!
-//! Drain loop (every 250 ms): check for a full 3-second chunk, downmix L/R
-//! to mono, naive-decimate 48 k → 16 k, hound-encode WAV, POST to
-//! /api/transcribe, emit the transcript as `vaani-transcript`.
-//!
-//! TCC: macOS treats this under "Screen Recording" permission. On first
-//! launch the user MUST grant that in System Settings → Privacy & Security.
+//! Every boundary gets a tracing line so a pipeline stall can be localised
+//! by reading the log alone:
+//!   first_sample_arrived        → SCStream delivered audio
+//!   buffer_push                 → samples appended to ring buffer
+//!   chunk_drained               → 3 s of mono pulled
+//!   silence_skip                → chunk dropped by RMS gate
+//!   wav_encoded                 → chunk serialised to WAV
+//!   http_pre / http_post        → upload begin / server response
+//!   emit_transcript             → event fired to frontend
+//!   emit_failed                 → event emit returned Err
 
 use anyhow::Result;
 use parking_lot::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 use crate::state::AppState;
@@ -48,8 +54,7 @@ fn rms(samples: &[f32]) -> f32 {
     (sum / samples.len() as f32).sqrt()
 }
 
-/// Naive 48k → 16k: keep every 3rd sample. Whisper tolerates it; a proper
-/// low-pass resampler would add a `rubato` dep and is unnecessary for MVP.
+/// Naive 48k → 16k: keep every 3rd sample. Whisper tolerates it.
 fn resample_48k_to_16k(input: &[f32]) -> Vec<f32> {
     input.iter().step_by(3).copied().collect()
 }
@@ -74,6 +79,13 @@ fn encode_wav(samples_16k: &[f32]) -> Result<Vec<u8>> {
     Ok(cursor.into_inner())
 }
 
+fn emit_status(app: &AppHandle, kind: &str, message: &str) {
+    let _ = app.emit(
+        "vaani-status",
+        serde_json::json!({ "kind": kind, "message": message }),
+    );
+}
+
 #[cfg(target_os = "macos")]
 pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
     use screencapturekit::cm::CMSampleBuffer;
@@ -83,8 +95,14 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
         output_trait::SCStreamOutputTrait, output_type::SCStreamOutputType, sc_stream::SCStream,
     };
 
+    // Shared flag the callback flips on its first useful sample. Cheap atomic
+    // so we can log once without paying for tracing on every frame.
+    let first_sample_seen = Arc::new(AtomicBool::new(false));
+
     struct AudioHandler {
         buffer: Arc<Mutex<RingBuffer>>,
+        first_sample_seen: Arc<AtomicBool>,
+        app: AppHandle,
     }
 
     impl SCStreamOutputTrait for AudioHandler {
@@ -104,15 +122,14 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
                 return;
             }
 
-            // SCStream default: non-interleaved Float32, one AudioBuffer per
-            // channel. Mono downmix = average all channels frame-by-frame.
-            // Each channel has the same frame count (Float32 bytes / 4).
             let first = abl.get(0).unwrap();
             let frames = first.data_bytes_size as usize / 4;
             if frames == 0 {
                 return;
             }
 
+            // Non-interleaved Float32: one AudioBuffer per channel, same
+            // frame count. Mono downmix = per-frame average across channels.
             let mut mixed = vec![0.0f32; frames];
             let mut actual_channels = 0usize;
             for buf in abl.iter() {
@@ -136,30 +153,44 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
                 *s *= inv;
             }
 
-            self.buffer.lock().mono_48k.extend(mixed);
+            // First-sample tracing is a one-shot event.
+            if !self.first_sample_seen.swap(true, Ordering::SeqCst) {
+                tracing::info!(
+                    frames = frames,
+                    channels = actual_channels,
+                    rate = INPUT_SAMPLE_RATE,
+                    "first_sample_arrived"
+                );
+                emit_status(&self.app, "listening", "listening to system audio");
+            }
+
+            let mut b = self.buffer.lock();
+            b.mono_48k.extend(&mixed);
+            let total = b.mono_48k.len();
+            drop(b);
+            tracing::debug!(frames = frames, total_mono = total, "buffer_push");
         }
     }
 
     let buffer = Arc::new(Mutex::new(RingBuffer::default()));
     let client = crate::upload::http_client();
 
-    // Build filter on primary display.
+    tracing::info!("SCShareableContent::get — requesting permission-gated handle");
     let content = match SCShareableContent::get() {
         Ok(c) => c,
         Err(e) => {
             tracing::error!("SCShareableContent::get failed: {e:?}");
-            let _ = app.emit(
-                "vaani-status",
-                serde_json::json!({
-                    "kind": "error",
-                    "message": "grant Screen Recording permission (System Settings)",
-                }),
+            emit_status(
+                &app,
+                "error",
+                "permission: grant Screen Recording in System Settings",
             );
             return Err(anyhow::anyhow!("screencapturekit access denied: {e:?}"));
         }
     };
     let displays = content.displays();
     let Some(display) = displays.first() else {
+        emit_status(&app, "error", "no displays available");
         return Err(anyhow::anyhow!("no displays available"));
     };
     let filter = SCContentFilter::create()
@@ -175,31 +206,32 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
     let mut stream = SCStream::new(&filter, &config);
     let handler = AudioHandler {
         buffer: buffer.clone(),
+        first_sample_seen: first_sample_seen.clone(),
+        app: app.clone(),
     };
     stream.add_output_handler(handler, SCStreamOutputType::Audio);
 
     if let Err(e) = stream.start_capture() {
         tracing::error!("SCStream start_capture failed: {e:?}");
-        let _ = app.emit(
-            "vaani-status",
-            serde_json::json!({
-                "kind": "error",
-                "message": "couldn't start capture — grant Screen Recording",
-            }),
+        emit_status(
+            &app,
+            "error",
+            "couldn't start capture — grant Screen Recording",
         );
         return Err(anyhow::anyhow!("start_capture: {e:?}"));
     }
 
-    tracing::info!("SCStream capturing system audio at 48 kHz");
-    let _ = app.emit(
-        "vaani-status",
-        serde_json::json!({"kind": "listening", "message": "listening to system audio"}),
-    );
+    tracing::info!("SCStream capturing system audio at 48 kHz — awaiting frontend_ready");
+    emit_status(&app, "listening", "waiting for first audio sample");
 
-    // Drain + upload loop. Owned by this async task; SCStream stays alive
-    // inside this function's scope because we move it into the outer future.
+    // Block until the TS bridge has wired everything. This closes the IPC
+    // race where `vaani-transcript` emitted during DOM/webview warmup got
+    // dropped by listeners that hadn't registered yet.
+    state.frontend_ready.notified().await;
+    tracing::info!("frontend ready — entering drain loop");
+
     let drain_loop = async move {
-        let _stream_owner = stream; // keep alive
+        let _stream_owner = stream; // keep alive for the lifetime of the loop
         loop {
             tokio::time::sleep(Duration::from_millis(250)).await;
             if !state.running() {
@@ -209,18 +241,25 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
             let Some(samples_48k) = chunk else {
                 continue;
             };
-            if rms(&samples_48k) < SILENCE_RMS {
+            tracing::debug!(samples = samples_48k.len(), "chunk_drained");
+            let level = rms(&samples_48k);
+            if level < SILENCE_RMS {
+                tracing::debug!(rms = level, "silence_skip");
+                emit_status(&app, "listening", "silent — skipping chunk");
                 continue;
             }
             let samples_16k = resample_48k_to_16k(&samples_48k);
             let wav = match encode_wav(&samples_16k) {
-                Ok(w) => w,
+                Ok(w) => {
+                    tracing::debug!(bytes = w.len(), "wav_encoded");
+                    w
+                }
                 Err(e) => {
-                    tracing::warn!("wav encode failed: {e:?}");
+                    tracing::warn!("wav_encode_failed: {e:?}");
                     continue;
                 }
             };
-            // Whisper wants ISO 639-1 codes ("en", "hi"), not "en-IN".
+            // Whisper wants ISO 639-1 ("en", "hi"), not "en-IN".
             let lang_full = state.lang();
             let lang = lang_full
                 .split(['-', '_'])
@@ -232,45 +271,54 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
             let state_clone = state.clone();
             let wav_len = wav.len();
             tokio::spawn(async move {
-                tracing::info!(bytes = wav_len, "uploading chunk");
-                let _ = app_clone.emit(
-                    "vaani-status",
-                    serde_json::json!({"kind":"processing","message":"transcribing…"}),
+                emit_status(
+                    &app_clone,
+                    "processing",
+                    &format!("uploading… ({} kB)", wav_len / 1024),
                 );
+                tracing::info!(bytes = wav_len, "http_pre");
+                let t0 = Instant::now();
                 match crate::upload::upload_chunk(&client_clone, wav, &lang).await {
                     Ok(Some(resp)) => {
+                        let dt = t0.elapsed();
+                        tracing::info!(
+                            status = 200,
+                            latency_ms = dt.as_millis() as u64,
+                            "http_post"
+                        );
                         tracing::info!(transcript = %resp.transcript, "transcribed");
                         state_clone.set_last_transcript(resp.transcript.clone());
-                        let _ = app_clone.emit(
+                        let emit_res = app_clone.emit(
                             "vaani-transcript",
                             serde_json::json!({ "text": resp.transcript }),
                         );
-                        let _ = app_clone.emit(
-                            "vaani-status",
-                            serde_json::json!({"kind":"listening","message":"listening to system audio"}),
-                        );
+                        match emit_res {
+                            Ok(()) => tracing::info!(
+                                bytes = resp.transcript.len(),
+                                "emit_transcript"
+                            ),
+                            Err(e) => tracing::error!("emit_failed: {e:?}"),
+                        }
+                        emit_status(&app_clone, "listening", "listening to system audio");
                     }
                     Ok(None) => {
-                        tracing::info!("empty transcript — chunk was non-speech");
-                        let _ = app_clone.emit(
-                            "vaani-status",
-                            serde_json::json!({"kind":"listening","message":"listening to system audio"}),
+                        let dt = t0.elapsed();
+                        tracing::info!(
+                            status = 200,
+                            latency_ms = dt.as_millis() as u64,
+                            "http_post empty_transcript"
                         );
+                        emit_status(&app_clone, "listening", "listening to system audio");
                     }
                     Err(e) => {
-                        // Put the actual error string into the status bar so we
-                        // can diagnose from the UI alone (network vs server vs
-                        // TLS vs body). Truncate so it fits the 320px window.
+                        let dt = t0.elapsed();
                         let full = format!("{e}");
-                        let short = full.chars().take(90).collect::<String>();
-                        tracing::warn!("upload failed: {full}");
-                        let _ = app_clone.emit(
-                            "vaani-status",
-                            serde_json::json!({
-                                "kind": "error",
-                                "message": format!("upload: {short}"),
-                            }),
+                        tracing::warn!(
+                            latency_ms = dt.as_millis() as u64,
+                            "http_post error: {full}"
                         );
+                        let short = full.chars().take(90).collect::<String>();
+                        emit_status(&app_clone, "error", &format!("upload: {short}"));
                     }
                 }
             });
@@ -281,10 +329,7 @@ pub async fn run_pipeline(app: AppHandle, state: Arc<AppState>) -> Result<()> {
 
 #[cfg(not(target_os = "macos"))]
 pub async fn run_pipeline(app: AppHandle, _state: Arc<AppState>) -> Result<()> {
-    let _ = app.emit(
-        "vaani-status",
-        serde_json::json!({"kind":"error","message":"macOS required for system audio"}),
-    );
+    emit_status(&app, "error", "macOS required for system audio");
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
     }

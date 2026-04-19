@@ -28,7 +28,8 @@
         "fullscreen": false,
         "center": false,
         "x": 40,
-        "y": 40
+        "y": 40,
+        "devtools": true
       }
     ],
     "security": {

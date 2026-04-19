@@ -14,6 +14,18 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 
 pub const TRANSCRIBE_URL: &str = "https://vaani-gold.vercel.app/api/transcribe";
 
+/// Called by the TypeScript bridge once every Tauri listener + the
+/// `window.addEventListener("message")` are wired. Unblocks the audio
+/// drain loop so it starts emitting `vaani-transcript` events into a
+/// frontend that is guaranteed to be listening.
+#[tauri::command]
+fn frontend_ready(state: tauri::State<'_, Arc<AppState>>) {
+    let first = state.mark_frontend_ready();
+    if first {
+        tracing::info!("frontend_ready signalled by TS bridge");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -26,6 +38,7 @@ pub fn run() {
     let state = Arc::new(AppState::new());
 
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![frontend_ready])
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
