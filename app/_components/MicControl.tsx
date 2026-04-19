@@ -1,20 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Mic, MicOff, Loader2, Sparkles } from "lucide-react";
-import { glossify } from "@/lib/glossify";
-import { glossifyViaLlm } from "@/lib/glossifyLlm";
-import { loadLexicon, resolveSign } from "@/lib/lexicon";
 import { useSpeechASR, type AsrLang } from "@/lib/useSpeech";
-import { loadCaptureManifest, lookupCapture } from "@/lib/captureLookup";
-import {
-  useCaptureQueue,
-  useGlossStore,
-  useSignQueue,
-  useTranscriptionStore,
-  type CaptureQueueItem,
-  type GlossToken,
-} from "@/lib/stores/pipeline";
+import { useTranscriptPipeline } from "@/lib/useTranscriptPipeline";
+import { useTranscriptionStore } from "@/lib/stores/pipeline";
 
 export default function MicControl() {
   const {
@@ -31,93 +21,9 @@ export default function MicControl() {
   const transcript = useTranscriptionStore((s) => s.transcript);
   const isGenerating = useTranscriptionStore((s) => s.isGenerating);
   const activeEngine = useTranscriptionStore((s) => s.engine);
-  const setGenerating = useTranscriptionStore((s) => s.setGenerating);
-  const setEngine = useTranscriptionStore((s) => s.setEngine);
-  const setTokens = useGlossStore((s) => s.setTokens);
-  const enqueueSigns = useSignQueue((s) => s.enqueue);
-  const enqueueCapture = useCaptureQueue((s) => s.enqueue);
   const [typed, setTyped] = useState("");
-  const [usedLlm, setUsedLlm] = useState(false);
 
-  useEffect(() => {
-    if (!transcript) return;
-    const controller = new AbortController();
-    let cancelled = false;
-
-    const run = async () => {
-      setGenerating(true);
-
-      // 1a. Try LLM first (handles Hindi, arbitrary sentences, context).
-      let tokens: GlossToken[] | null = await glossifyViaLlm(
-        transcript,
-        controller.signal,
-      );
-      let usedLlmLocal = !!tokens;
-
-      // 1b. Fallback: rule-based glossify.
-      if (!tokens) {
-        tokens = glossify(transcript);
-      }
-
-      // 2. OOV flags.
-      try {
-        const lexicon = await loadLexicon();
-        tokens = tokens.map((token) => ({
-          ...token,
-          isOOV: resolveSign(token, lexicon).isOOV,
-        }));
-      } catch {}
-      if (cancelled) {
-        setGenerating(false);
-        return;
-      }
-      setTokens(tokens);
-      setUsedLlm(usedLlmLocal);
-
-      // 3. Bucket: captured → capture queue, uncaptured → placeholder.
-      const manifest = await loadCaptureManifest();
-      if (cancelled) {
-        setGenerating(false);
-        return;
-      }
-      const captureItems: CaptureQueueItem[] = [];
-      let anyCapture = false;
-      for (const token of tokens) {
-        const url = lookupCapture(token.text, manifest);
-        if (url) anyCapture = true;
-        captureItems.push({
-          gloss: token.text,
-          captureUrl: url,
-          nmm: token.nmm,
-          durationMs: url ? 1400 : 1100,
-        });
-      }
-
-      if (anyCapture) {
-        enqueueCapture(captureItems);
-        setEngine("mocap");
-      } else {
-        enqueueSigns(tokens);
-        setEngine("rules");
-      }
-      setGenerating(false);
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      setGenerating(false);
-    };
-  }, [
-    transcript,
-    setTokens,
-    enqueueSigns,
-    enqueueCapture,
-    setEngine,
-    setGenerating,
-  ]);
+  useTranscriptPipeline();
 
   const submitTyped = () => {
     const value = typed.trim();
@@ -207,11 +113,6 @@ export default function MicControl() {
             <Sparkles className="h-3 w-3" />
             {activeEngine === "mocap" ? "real motion capture" : "rules fallback"}
           </div>
-          {usedLlm && (
-            <div className="inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-violet-300">
-              AI context
-            </div>
-          )}
         </div>
       )}
 

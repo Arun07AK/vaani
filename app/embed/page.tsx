@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import AvatarStage from "@/app/_components/AvatarStage";
 import GlossOverlay from "@/app/_components/GlossOverlay";
 import { useTranscriptionStore } from "@/lib/stores/pipeline";
+import { useTranscriptPipeline } from "@/lib/useTranscriptPipeline";
 
 /**
  * /embed — headless variant of the home page for the VAANI Chrome extension.
@@ -17,6 +18,9 @@ import { useTranscriptionStore } from "@/lib/stores/pipeline";
  */
 export default function EmbedPage() {
   const setTranscript = useTranscriptionStore((s) => s.setTranscript);
+
+  // Drive the transcript → gloss → queue → avatar pipeline headlessly.
+  useTranscriptPipeline();
 
   useEffect(() => {
     // Signal readiness to the parent.
