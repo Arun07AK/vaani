@@ -2,6 +2,8 @@
 
 Real-time **Indian Sign Language** translator. Speech (English or Hindi) in, a 3D avatar signing in ISL out. Runs as a web app, as a Chrome extension that floats over any tab, and wires straight into a shared backend that handles transcription, grammar, and sign resolution.
 
+**Built in 24 hours at Hack Helix 2026, Thapar University** (Track 4 · Problem 01).
+
 **▶ Demos (all unlisted):**
 - Web app — https://youtu.be/csMj22E60-o
 - Chrome extension in action — https://youtu.be/NP_Ad4kkmSY
@@ -144,7 +146,7 @@ Built by **Arun AK** (Thapar University).
 
 Pitch, research, guidance, and problem-statement scoping from **Aniket**, **Avnish**, **Rajeev**, **Amarjeet**, and **Ishaan**.
 
-Submitted to Hack Helix 2026 (TIET Thapar, Track 4 · Problem 01).
+Built over 24 hours at Hack Helix 2026 (Thapar Institute of Engineering and Technology, Track 4 · Problem 01).
 
 ---
 
