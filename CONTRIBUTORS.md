@@ -4,8 +4,6 @@ This file is the canonical record of who contributed to VAANI and in what capaci
 
 ---
 
-## Engineering — 100% Arun AK
-
 **Arun AK** — engineering builder.
 - GitHub: [@Arun07AK](https://github.com/Arun07AK)
 - LinkedIn: [arun-ak-thapar](https://www.linkedin.com/in/arun-ak-thapar/)
@@ -13,7 +11,7 @@ This file is the canonical record of who contributed to VAANI and in what capaci
 
 ### What Arun built
 
-Every technical subsystem of VAANI is his sole work:
+Every technical subsystem of VAANI is his work:
 
 - **Web application** (Next.js 16 + React 19, `app/`)
 - **Chrome MV3 extension** (`vaani-ext/` — popup, background service worker, offscreen audio capture, floating PiP window)
