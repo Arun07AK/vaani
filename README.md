@@ -154,7 +154,7 @@ Team roles on the Hack Helix 2026 submission :
 | Aniket | Pitch preparation & stage delivery |
 | Avnish | Research |
 | Rajeev | Guidance & research |
-| Amarjeet | Guidance & research |
+| Laishram Amarjit | Guidance & research |
 | Ishaan | Problem-statement selection at hackathon start |
 
 Full contribution breakdown and attribution rules: [CONTRIBUTORS.md](./CONTRIBUTORS.md).
