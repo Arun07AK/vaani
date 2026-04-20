@@ -157,6 +157,8 @@ Team roles on the Hack Helix 2026 submission :
 | Amarjeet | Guidance |
 | Ishaan | Problem-statement selection at hackathon start |
 
+Full contribution breakdown and attribution rules: [CONTRIBUTORS.md](./CONTRIBUTORS.md).
+
 Built over 24 hours at Hack Helix 2026 (Thapar Institute of Engineering and Technology, Track 4 · Problem 01).
 
 ---
