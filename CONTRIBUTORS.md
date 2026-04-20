@@ -6,7 +6,7 @@ This file is the canonical record of who contributed to VAANI and in what capaci
 
 ## Engineering — 100% Arun AK
 
-**Arun AK** — Solo engineering builder.
+**Arun AK** — engineering builder.
 - GitHub: [@Arun07AK](https://github.com/Arun07AK)
 - LinkedIn: [arun-ak-thapar](https://www.linkedin.com/in/arun-ak-thapar/)
 - Thapar Institute of Engineering and Technology, CSE 2nd year
@@ -32,7 +32,6 @@ Git history serves as the authoritative timeline. Every commit is authored by Ar
 
 ## Support team — Hack Helix 2026 submission
 
-These teammates contributed to the non-engineering side of the hackathon submission. None of them wrote code, designed UI, authored assets, or built any subsystem of the VAANI product. Their contributions were advisory and logistical.
 
 | Name | Contribution during Hack Helix 2026 |
 |---|---|
@@ -42,7 +41,6 @@ These teammates contributed to the non-engineering side of the hackathon submiss
 | **Amarjeet** | Guidance |
 | **Ishaan** | Problem-statement selection at hackathon start |
 
-The author is grateful to each of them. Their support made the submission possible. Their credit is intentional and sincere — **but distinct from engineering authorship.**
 
 ---
 
@@ -59,7 +57,7 @@ Per [LICENSE.md](./LICENSE.md) §4:
 
 ✅ *"VAANI was built solo by Arun AK, with Aniket on pitch delivery and Avnish/Rajeev on research."*
 
-✅ *"VAANI is Arun AK's solo build from Hack Helix 2026."*
+✅ *"VAANI is Arun AK's build from Hack Helix 2026."*
 
 ✅ *"The VAANI pitch was delivered by Aniket Sharma, presenting work engineered by Arun AK."*
 
