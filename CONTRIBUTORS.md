@@ -28,7 +28,7 @@ Git history serves as the authoritative timeline. Every commit is authored by Ar
 
 ---
 
-## Support team — Hack Helix 2026 submission
+## team — Hack Helix 2026 submission
 
 
 | Name | Contribution during Hack Helix 2026 |
