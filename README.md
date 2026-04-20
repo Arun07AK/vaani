@@ -2,7 +2,9 @@
 
 Real-time **Indian Sign Language** translator. Speech (English or Hindi) in, a 3D avatar signing in ISL out. Runs as a web app, as a Chrome extension that floats over any tab, and wires straight into a shared backend that handles transcription, grammar, and sign resolution.
 
-**Built in 24 hours at Hack Helix 2026, Thapar University** (Track 4 · Problem 01).
+**Built solo by [Arun AK](https://github.com/Arun07AK) in 24 hours at Hack Helix 2026, Thapar University** (Track 4 · Problem 01).
+
+> ⚠ **This repository is not open-source.** VAANI is copyrighted, original engineering work of Arun AK. See [LICENSE.md](./LICENSE.md) — reproducing, redistributing, or claiming this work as your own (in hackathons, portfolios, LinkedIn posts, startup pitches, or anywhere else) is explicitly prohibited. You may read, learn from, and cite the work with attribution.
 
 **▶ Demos (all unlisted):**
 - Web app — https://youtu.be/csMj22E60-o
@@ -142,9 +144,19 @@ mic / tab audio
 
 ## Credits
 
-Built by **Arun AK** (Thapar University).
+**Solo engineering build by [Arun AK](https://github.com/Arun07AK)** — Thapar Institute of Engineering and Technology, CSE 2nd year.
 
-Pitch, research, guidance, and problem-statement scoping from **Aniket**, **Avnish**, **Rajeev**, **Amarjeet**, and **Ishaan**.
+All engineering, UI/UX, motion-capture toolkit, grammar engine, avatar rigging, Chrome extension, and product design: **Arun AK, end-to-end, 100%.**
+
+Support roles on the Hack Helix 2026 submission (none of whom touched the engineering):
+
+| Teammate | Role |
+|---|---|
+| Aniket | Pitch preparation & stage delivery |
+| Avnish | Research |
+| Rajeev | Guidance & research |
+| Amarjeet | Guidance |
+| Ishaan | Problem-statement selection at hackathon start |
 
 Built over 24 hours at Hack Helix 2026 (Thapar Institute of Engineering and Technology, Track 4 · Problem 01).
 
@@ -152,4 +164,18 @@ Built over 24 hours at Hack Helix 2026 (Thapar Institute of Engineering and Tech
 
 ## License
 
-MIT on the code. VRM avatar rigs are CC-licensed from VRoid Hub. Motion-capture JSONs were recorded from public ISLRTC reference videos using the internal `/tools/capture` pipeline and are redistributed here for research / educational use.
+**VAANI is proprietary, not open-source.** All Rights Reserved © 2026 Arun AK. See [LICENSE.md](./LICENSE.md) for the full terms.
+
+**Summary:**
+
+- ✅ You may clone this repo for personal learning and experimentation on your own machine.
+- ✅ You may cite VAANI with attribution (name + `github.com/Arun07AK/vaani`) in articles, research, and portfolios.
+- ❌ You may **not** reproduce, fork publicly, host, or redistribute this project under your own name or team's name.
+- ❌ You may **not** claim authorship of VAANI or any of its subsystems — in hackathons, portfolios, LinkedIn posts, startup pitches, resumes, or academic submissions.
+- ❌ You may **not** use the demo videos, carousel PDF, or screenshots in your own presentations without written permission.
+- ❌ You may **not** commercially deploy or monetize VAANI or its derivatives.
+- ❌ You may **not** train ML models on this code or its captured data.
+
+Third-party components retain their original licenses: the VRM humanoid rig is CC-licensed from VRoid Hub. Motion-capture JSONs were generated from publicly-available ISLRTC "Sign Learn" reference material using the internal `/tools/capture` pipeline; redistributed here for research/educational use only — commercial use requires independent clearance from ISLRTC.
+
+If you see this work presented as someone else's — on LinkedIn, at a hackathon, in a portfolio, anywhere — please [file a takedown with the hosting platform](./LICENSE.md#6-enforcement-and-takedown) and DM the author.

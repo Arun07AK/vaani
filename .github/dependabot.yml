@@ -1,0 +1,26 @@
+# Dependabot — weekly security scans for the VAANI stack.
+# Alerts appear under Security → Dependabot in GitHub.
+
+version: 2
+updates:
+  # npm dependencies (Next.js app + Chrome extension)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "Arun07AK"
+    labels:
+      - "dependencies"
+      - "security"
+
+  # GitHub Actions (if any workflow files are added later)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    reviewers:
+      - "Arun07AK"

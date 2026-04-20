@@ -1,0 +1,10 @@
+# VAANI — CODEOWNERS
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/managing-repository-settings/about-code-owners
+#
+# Arun AK is the sole engineering owner of VAANI. Any PR, issue triage,
+# or merge into any branch of this repository requires @Arun07AK's review.
+#
+# This file is enforced by GitHub when combined with the branch-protection
+# rule: "Require review from Code Owners" on the `main` branch.
+
+* @Arun07AK
