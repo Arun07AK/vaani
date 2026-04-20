@@ -2,7 +2,10 @@
 
 Real-time **Indian Sign Language** translator. Speech (English or Hindi) in, a 3D avatar signing in ISL out. Runs as a web app, as a Chrome extension that floats over any tab, and wires straight into a shared backend that handles transcription, grammar, and sign resolution.
 
-**▶ Watch the demo (2 min, unlisted):** https://youtu.be/REPLACE-ME
+**▶ Demos (all unlisted):**
+- Web app — https://youtu.be/csMj22E60-o
+- Chrome extension in action — https://youtu.be/NP_Ad4kkmSY
+- Motion-capture training toolkit (built from scratch) — https://youtu.be/wFh8U9Rtheg
 
 **UI preview (no translation without your own key):** https://vaani-gold.vercel.app
 
@@ -34,7 +37,7 @@ The translation pipeline makes two paid API calls per sentence — **Whisper-1**
 
 **To actually try VAANI hands-on:**
 
-1. Watch the [YouTube demo video](https://youtu.be/REPLACE-ME) to see it working end-to-end, OR
+1. Watch the demos end-to-end — [web app](https://youtu.be/csMj22E60-o) · [Chrome extension](https://youtu.be/NP_Ad4kkmSY) · [training toolkit](https://youtu.be/wFh8U9Rtheg) — OR
 2. Clone this repo and bring your own key:
    ```bash
    git clone https://github.com/Arun07AK/vaani.git
