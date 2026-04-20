@@ -45,3 +45,5 @@ next-env.d.ts
 .remember/
 /tmp/
 .cursor/
+CLAUDE.md
+AGENTS.md
