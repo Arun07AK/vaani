@@ -31,7 +31,6 @@ Under the hood:
 - **VRM rig** with 44 bones + 15 facial morph targets driven independently at 60 fps (React Three Fiber)
 - The motion-capture toolkit (`/tools/capture`) was built from scratch with MediaPipe + Kalidokit — no licensed animation dataset
 
-See `CLAUDE.md` for the full architecture + file map.
 
 ---
 
