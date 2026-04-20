@@ -2,7 +2,9 @@
 
 Real-time **Indian Sign Language** translator. Speech (English or Hindi) in, a 3D avatar signing in ISL out. Runs as a web app, as a Chrome extension that floats over any tab, and wires straight into a shared backend that handles transcription, grammar, and sign resolution.
 
-**Live:** https://vaani-gold.vercel.app
+**▶ Watch the demo (2 min, unlisted):** https://youtu.be/REPLACE-ME
+
+**UI preview (no translation without your own key):** https://vaani-gold.vercel.app
 
 ---
 
@@ -28,15 +30,25 @@ See `CLAUDE.md` for the full architecture + file map.
 
 ## ⚠ Testing requires your own OpenAI API key
 
-The translation pipeline makes two paid API calls per sentence — **Whisper-1** for transcription and **GPT-4.1** for ISL grammar. Without a key you will get `500 OPENAI_API_KEY not set on server` from both routes and the avatar will sit idle.
+The translation pipeline makes two paid API calls per sentence — **Whisper-1** for transcription and **GPT-4.1** for ISL grammar. The live deployment at vaani-gold.vercel.app **does not** have an API key attached any more, so the UI loads but pressing the mic or typing a sentence returns `OPENAI_API_KEY not set on server`. This is intentional — API keys cost money and leaving one on a public demo lets strangers run up the bill.
 
-- **Just want to see it in action?** Use the live deployment: https://vaani-gold.vercel.app
-- **Running locally?** You need your own key:
-  1. Get one at https://platform.openai.com/api-keys
-  2. `cp .env.local.example .env.local`
-  3. Open `.env.local` and replace `sk-...` with your real key
-  4. `bun run dev`
+**To actually try VAANI hands-on:**
+
+1. Watch the [YouTube demo video](https://youtu.be/REPLACE-ME) to see it working end-to-end, OR
+2. Clone this repo and bring your own key:
+   ```bash
+   git clone https://github.com/Arun07AK/vaani.git
+   cd vaani
+   bun install
+   cp .env.local.example .env.local
+   # open .env.local, replace `sk-...` with your real key
+   bun run dev        # → http://localhost:3002
+   ```
+
+**Getting a key:**
+- https://platform.openai.com/api-keys
 - Cost is about 2 paise / $0.0003 per sentence (one Whisper chunk + one glossify call). A 5-minute hands-on test runs ≈ $0.05–0.10.
+- Set a [usage cap](https://platform.openai.com/account/limits) of $5 if you're worried about surprises.
 - Never commit the real key. `.env.local` is already in `.gitignore`.
 
 ---
