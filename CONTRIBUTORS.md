@@ -11,8 +11,6 @@ This file is the canonical record of who contributed to VAANI and in what capaci
 
 ### What Arun built
 
-Every technical subsystem of VAANI is his work:
-
 - **Web application** (Next.js 16 + React 19, `app/`)
 - **Chrome MV3 extension** (`vaani-ext/` — popup, background service worker, offscreen audio capture, floating PiP window)
 - **Backend API routes** — `/api/transcribe` (OpenAI Whisper integration) and `/api/glossify-llm` (GPT-4.1 with strict JSON-schema ISL grammar engine)
