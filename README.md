@@ -144,11 +144,11 @@ mic / tab audio
 
 ## Credits
 
-**Solo engineering build by [Arun AK](https://github.com/Arun07AK)** — Thapar Institute of Engineering and Technology, CSE 2nd year.
+**engineering build by [Arun AK](https://github.com/Arun07AK)** — Thapar Institute of Engineering and Technology, CSE 2nd year.
 
-All engineering, UI/UX, motion-capture toolkit, grammar engine, avatar rigging, Chrome extension, and product design: **Arun AK, end-to-end, 100%.**
+All engineering, UI/UX, motion-capture toolkit, grammar engine, avatar rigging, Chrome extension, and product design: **Arun AK, end-to-end.**
 
-Support roles on the Hack Helix 2026 submission (none of whom touched the engineering):
+Team roles on the Hack Helix 2026 submission :
 
 | Teammate | Role |
 |---|---|
