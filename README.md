@@ -2,7 +2,7 @@
 
 Real-time **Indian Sign Language** translator. Speech (English or Hindi) in, a 3D avatar signing in ISL out. Runs as a web app, as a Chrome extension that floats over any tab, and wires straight into a shared backend that handles transcription, grammar, and sign resolution.
 
-**Built solo by [Arun AK](https://github.com/Arun07AK) in 24 hours at Hack Helix 2026, Thapar University** (Track 4 · Problem 01).
+**Built by [Arun AK](https://github.com/Arun07AK) in 24 hours at Hack Helix 2026, Thapar University** (Track 4 · Problem 01).
 
 > ⚠ **This repository is not open-source.** VAANI is copyrighted, original engineering work of Arun AK. See [LICENSE.md](./LICENSE.md) — reproducing, redistributing, or claiming this work as your own (in hackathons, portfolios, LinkedIn posts, startup pitches, or anywhere else) is explicitly prohibited. You may read, learn from, and cite the work with attribution.
 
