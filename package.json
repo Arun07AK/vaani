@@ -22,7 +22,7 @@
     "compromise": "^14.15.0",
     "kalidokit": "^1.1.5",
     "lucide-react": "^1.8.0",
-    "next": "16.2.4",
+    "next": "16.2.10",
     "openai": "^6.34.0",
     "pose-format": "^1.6.2",
     "react": "19.2.6",
